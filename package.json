@@ -1,0 +1,31 @@
+{
+  "name": "mediaos",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev:frontend": "next dev frontend -H 0.0.0.0",
+    "build:frontend": "next build frontend",
+    "start:frontend": "next start frontend -H 0.0.0.0",
+    "lint:frontend": "eslint frontend --config frontend/eslint.config.mjs --max-warnings=0",
+    "typecheck:frontend": "tsc --project frontend/tsconfig.json --noEmit",
+    "format:check": "prettier --check frontend package.json"
+  },
+  "dependencies": {
+    "next": "16.2.10",
+    "react": "19.2.7",
+    "react-dom": "19.2.7"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "eslint": "^9.39.0",
+    "eslint-config-next": "16.2.10",
+    "prettier": "^3.6.0",
+    "typescript": "7.0.2"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}
+

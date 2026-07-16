@@ -1,0 +1,5 @@
+# A real GitHub user or team must be configured before branch protection is enabled.
+# No identity is fabricated from local Git metadata.
+# Example after the repository owner supplies an identity:
+# * @organisation/mediaos-maintainers
+

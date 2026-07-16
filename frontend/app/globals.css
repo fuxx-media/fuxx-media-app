@@ -1,0 +1,140 @@
+:root {
+  color-scheme: light;
+  --background: #f6f5f1;
+  --foreground: #1e2428;
+  --muted: #5f6870;
+  --line: #d8d6cf;
+  --panel: #ffffff;
+  --accent: #0f7b70;
+  --accent-strong: #07524b;
+  --warning: #a15c09;
+  --danger: #aa2f2f;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--background);
+  color: var(--foreground);
+  font-family:
+    Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+.shell {
+  inline-size: min(1120px, calc(100% - 32px));
+  margin-inline: auto;
+  padding-block: 48px;
+}
+
+.masthead {
+  align-items: flex-end;
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  gap: 24px;
+  justify-content: space-between;
+  padding-block-end: 28px;
+}
+
+.eyebrow {
+  color: var(--accent-strong);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0;
+  margin: 0 0 8px;
+  text-transform: uppercase;
+}
+
+h1 {
+  font-size: clamp(2rem, 6vw, 4.5rem);
+  letter-spacing: 0;
+  line-height: 0.95;
+  margin: 0;
+}
+
+.phase-badge {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--muted);
+  font-size: 0.9rem;
+  padding: 10px 12px;
+  white-space: nowrap;
+}
+
+.status-panel {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  margin-block-start: 28px;
+  overflow: hidden;
+}
+
+.status-header,
+.status-row {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: minmax(120px, 1fr) minmax(160px, 2fr) minmax(120px, 1fr);
+  padding: 18px 20px;
+}
+
+.status-header {
+  background: #ebe8df;
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.status-row + .status-row {
+  border-top: 1px solid var(--line);
+}
+
+.status-label {
+  font-weight: 700;
+}
+
+.status-message {
+  color: var(--muted);
+}
+
+.status-value {
+  font-variant-numeric: tabular-nums;
+  justify-self: end;
+}
+
+.state-ok {
+  color: var(--accent-strong);
+}
+
+.state-error {
+  color: var(--danger);
+}
+
+.state-pending {
+  color: var(--warning);
+}
+
+@media (max-width: 720px) {
+  .masthead {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .phase-badge {
+    white-space: normal;
+  }
+
+  .status-header {
+    display: none;
+  }
+
+  .status-row {
+    grid-template-columns: 1fr;
+  }
+
+  .status-value {
+    justify-self: start;
+  }
+}

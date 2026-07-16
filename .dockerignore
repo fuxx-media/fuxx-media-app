@@ -1,0 +1,14 @@
+.git
+.github
+.env*
+!.env.example
+.venv
+node_modules
+frontend/.next
+**/__pycache__
+**/.pytest_cache
+**/.mypy_cache
+**/.ruff_cache
+storage/*
+PHASE_0_1_CONFLICT_REPORT.md
+

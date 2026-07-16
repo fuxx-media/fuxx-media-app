@@ -6,6 +6,15 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
+COPY .local-certs/ /tmp/mediaos-local-certs/
+RUN if find /tmp/mediaos-local-certs -maxdepth 1 -type f -name '*.crt' | grep -q .; then \
+      for certificate in /tmp/mediaos-local-certs/*.crt; do \
+        cp "$certificate" "/usr/local/share/ca-certificates/$(basename "$certificate")"; \
+      done \
+      && update-ca-certificates; \
+    fi \
+    && rm -rf /tmp/mediaos-local-certs
+
 RUN groupadd --gid 10001 mediaos \
     && useradd --uid 10001 --gid mediaos --create-home mediaos
 
@@ -18,4 +27,3 @@ RUN pip install --no-cache-dir ".[dev]"
 USER mediaos
 
 CMD ["uvicorn", "mediaos.main:app", "--host", "0.0.0.0", "--port", "8000"]
-

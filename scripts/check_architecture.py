@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 import tomllib
 from pathlib import Path
@@ -14,9 +15,11 @@ ALLOWED_TOP_LEVEL = {
     ".env.example",
     ".github",
     ".gitignore",
+    ".local-certs",
     "IMPLEMENTATION_PLAN.md",
     "Makefile",
     "PHASE_0_1_CONFLICT_REPORT.md",
+    "PHASE_0_COMPLETION_REPORT.md",
     "README.md",
     "backend",
     "docker-compose.yml",
@@ -91,12 +94,15 @@ def iter_project_files() -> list[Path]:
         "dist",
         "node_modules",
     }
-    return sorted(
-        path
-        for path in ROOT.rglob("*")
-        if path.is_file() and ignored_parts.isdisjoint(path.relative_to(ROOT).parts)
-        and not any(part.endswith(".egg-info") for part in path.relative_to(ROOT).parts)
-    )
+    files: list[Path] = []
+    for directory, child_directories, filenames in os.walk(ROOT):
+        child_directories[:] = [
+            name
+            for name in child_directories
+            if name not in ignored_parts and not name.endswith(".egg-info")
+        ]
+        files.extend(Path(directory) / filename for filename in filenames)
+    return sorted(files)
 
 
 def fail(message: str) -> None:
@@ -104,9 +110,7 @@ def fail(message: str) -> None:
 
 
 def check_top_level(files: list[Path]) -> None:
-    unexpected = sorted(
-        {path.relative_to(ROOT).parts[0] for path in files} - ALLOWED_TOP_LEVEL
-    )
+    unexpected = sorted({path.relative_to(ROOT).parts[0] for path in files} - ALLOWED_TOP_LEVEL)
     if unexpected:
         fail(f"unexpected top-level entries: {', '.join(unexpected)}")
 
@@ -135,7 +139,7 @@ def check_direct_dependencies() -> None:
 def check_current_state_mutation(files: list[Path]) -> None:
     allowed = Path("backend/src/mediaos/application/workflow_transition_service.py")
     patterns = (
-        re.compile(r"\.current_state\s*="),
+        re.compile(r"\.current_state\s*=(?!=)"),
         re.compile(r"setattr\([^)]*['\"]current_state['\"]"),
         re.compile(r"\.values\([^)]*current_state\s*="),
     )

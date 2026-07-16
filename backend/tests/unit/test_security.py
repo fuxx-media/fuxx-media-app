@@ -28,4 +28,3 @@ def test_redact_keeps_non_secret_values() -> None:
         "status": "ok",
         "cost_cents": 125,
     }
-

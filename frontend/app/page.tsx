@@ -6,9 +6,9 @@ export default function Home() {
       <section className="masthead" aria-labelledby="page-title">
         <div>
           <p className="eyebrow">MediaOS</p>
-          <h1 id="page-title">Phase 0.1 Foundation</h1>
+          <h1 id="page-title">Phase 0 Workflow Kernel</h1>
         </div>
-        <span className="phase-badge">No business workflows active</span>
+        <span className="phase-badge">External providers disabled</span>
       </section>
 
       <SystemStatus />

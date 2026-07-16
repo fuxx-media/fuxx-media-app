@@ -2,7 +2,7 @@
 
 ## Scope and interpretation
 
-This plan covers the full technical foundation described for Phase 0, while execution in the current assignment stops after work package 0.1. Explicitly required repository additions such as `.github/`, `IMPLEMENTATION_PLAN.md`, completion/conflict reports, lock files, Dockerfiles, framework configuration, and package markers extend the illustrative target tree and are therefore allowed by the architecture checker.
+This plan covers the full technical foundation described for Phase 0. Work packages 0.1 through 0.5 are implemented and verified. The richer internal frontend and real/fake provider execution remain outside the completed kernel scope.
 
 No technical contradiction blocks Phase 0.1. Two specification details are resolved conservatively:
 
@@ -47,7 +47,7 @@ No technical contradiction blocks Phase 0.1. Two specification details are resol
 - The 32 rules are documented and mapped to automated or review enforcement.
 - No prohibited Phase 0 feature is present.
 
-## Work package 0.2 – core data model (not part of the current implementation)
+## Work package 0.2 – core data model (completed)
 
 ### Files
 
@@ -63,7 +63,7 @@ No technical contradiction blocks Phase 0.1. Two specification details are resol
 - Duplicate and constraint conditions are checked before database enforcement.
 - Migration rerun and target-database verification pass.
 
-## Work package 0.3 – workflow and audit (not part of the current implementation)
+## Work package 0.3 – workflow and audit (completed)
 
 ### Files
 
@@ -76,7 +76,7 @@ No technical contradiction blocks Phase 0.1. Two specification details are resol
 - Allowed, forbidden, version-conflict, prerequisite, and cost-limit cases are tested.
 - Transition, version increment, workflow record, and immutable audit event commit atomically.
 
-## Work package 0.4 – PostgreSQL queue and worker (not part of the current implementation)
+## Work package 0.4 – PostgreSQL queue and worker (completed)
 
 ### Files
 
@@ -89,7 +89,7 @@ No technical contradiction blocks Phase 0.1. Two specification details are resol
 - Parallel workers cannot claim the same task.
 - Success/failure result and audit event are persisted; retries are bounded and tested.
 
-## Work package 0.5 – Phase 0 API (not part of the current implementation)
+## Work package 0.5 – Phase 0 API (completed)
 
 ### Files
 
@@ -126,7 +126,7 @@ No technical contradiction blocks Phase 0.1. Two specification details are resol
 - Providers cannot mutate workflow state or own transactions.
 - Registry behavior and fake calls are tested; no external provider SDK is installed.
 
-## Work package 0.8 – final quality and completion (not part of the current implementation)
+## Work package 0.8 – final quality and completion (completed for this execution block)
 
 ### Files
 
@@ -137,4 +137,3 @@ No technical contradiction blocks Phase 0.1. Two specification details are resol
 - All 22 Phase 0 completion criteria have concrete test or runtime evidence.
 - CI and architecture checks pass from a clean checkout.
 - Running commit, migrations, services, feature flags, limitations, and rollback path are documented.
-

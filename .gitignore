@@ -2,6 +2,8 @@
 .env
 .env.*
 !.env.example
+.local-certs/*.crt
+.local-certs/*.cer
 *.pem
 *.key
 credentials*.json
@@ -24,6 +26,7 @@ build/
 node_modules/
 frontend/.next/
 frontend/out/
+*.tsbuildinfo
 npm-debug.log*
 
 # Editors and operating systems
@@ -35,4 +38,3 @@ Thumbs.db
 # Runtime storage (keep directory only)
 storage/*
 !storage/.gitkeep
-

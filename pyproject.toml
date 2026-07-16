@@ -35,6 +35,8 @@ where = ["backend/src"]
 addopts = "-q --strict-markers"
 asyncio_mode = "auto"
 testpaths = ["backend/tests"]
+pythonpath = [".", "backend/src"]
+markers = ["integration: requires an isolated PostgreSQL database"]
 
 [tool.ruff]
 target-version = "py312"
@@ -48,4 +50,3 @@ select = ["B", "E", "F", "I", "SIM", "UP"]
 python_version = "3.12"
 strict = true
 files = ["backend/src", "scripts/check_architecture.py"]
-

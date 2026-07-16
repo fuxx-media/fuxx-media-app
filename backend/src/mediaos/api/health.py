@@ -1,4 +1,4 @@
-"""Phase 0.1 liveness and readiness routes."""
+"""Phase 0 liveness and readiness routes."""
 
 import httpx
 from fastapi import APIRouter
@@ -42,4 +42,3 @@ async def ready() -> dict[str, object] | JSONResponse:
 @router.get("/version")
 async def version() -> dict[str, str]:
     return {"name": APP_NAME, "version": APP_VERSION, "phase": APP_PHASE}
-

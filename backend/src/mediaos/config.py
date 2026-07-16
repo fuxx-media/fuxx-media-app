@@ -1,5 +1,6 @@
 """Environment-only application configuration."""
 
+import os
 from functools import lru_cache
 
 from pydantic import AnyHttpUrl, SecretStr
@@ -53,7 +54,14 @@ class Settings(BaseSettings):
         return f"{str(self.minio_endpoint).rstrip('/')}/minio/health/ready"
 
 
+def get_frontend_origins() -> list[str]:
+    configured = os.getenv(
+        "MEDIAOS_FRONTEND_ORIGINS",
+        "http://localhost:3000,http://127.0.0.1:3000",
+    )
+    return [origin.strip() for origin in configured.split(",") if origin.strip()]
+
+
 @lru_cache
 def get_settings() -> Settings:
     return Settings()  # type: ignore[call-arg]
-

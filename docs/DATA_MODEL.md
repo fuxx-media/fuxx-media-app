@@ -1,10 +1,10 @@
 # Data model
 
-## Phase 0.1 status
+## Phase 0 status
 
-Business tables are intentionally not implemented in Phase 0.1. Alembic is operational and the baseline migration establishes only migration infrastructure.
+Migration `086e30120b92` implements the complete Phase 0 relational kernel in PostgreSQL.
 
-## Planned Phase 0 entities
+## Implemented entities
 
 - `Channel`
 - `ContentJob`
@@ -17,7 +17,8 @@ Business tables are intentionally not implemented in Phase 0.1. Alembic is opera
 - `JobTask`
 - `Artifact`
 
-All entities will use UUID primary keys and UTC timestamps. Monetary fields will be integer cents. Workflow and task states will be typed enums. `ContentJob` will carry an integer version used for optimistic concurrency control.
+All entities use UUID primary keys and UTC timestamps. Monetary fields are database integers constrained to non-negative cent values. Workflow, approval, provider-call, artifact, and task states are typed enums. `ContentJob.version` starts at one and is checked under a row lock for optimistic concurrency control.
+
+Foreign keys use explicit deletion behavior. Queue claiming is indexed by status, availability, and creation time. Audit events are append-only in both SQLAlchemy and PostgreSQL through an update/delete rejection trigger.
 
 PostgreSQL is the sole system of record. MinIO stores artifact bytes; PostgreSQL stores artifact identity, ownership, metadata, checksums, and lifecycle state.
-

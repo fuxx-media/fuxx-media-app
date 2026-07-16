@@ -19,7 +19,7 @@ test:
 	docker compose run --rm backend pytest
 
 lint:
-	docker compose run --rm backend ruff check backend scripts
+	docker compose run --rm backend ruff check backend/src backend/tests scripts
 	docker compose run --rm frontend npm run lint:frontend
 
 typecheck:
@@ -30,4 +30,3 @@ architecture:
 	docker compose run --rm backend python scripts/check_architecture.py
 
 quality: lint typecheck test architecture
-

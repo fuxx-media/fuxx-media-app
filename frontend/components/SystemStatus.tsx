@@ -56,7 +56,7 @@ export function SystemStatus() {
     },
     {
       label: "Postgres",
-      message: "Connectivity check only, no business tables.",
+      message: "Primary workflow system of record.",
       state: readiness?.dependencies.postgres ? "ok" : readiness ? "error" : "pending",
       value: readiness ? String(readiness.dependencies.postgres) : "loading",
     },

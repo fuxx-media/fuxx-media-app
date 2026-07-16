@@ -15,12 +15,35 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - name: Check Phase 0.1 boundaries
+      - name: Check Phase 0 boundaries
         run: python scripts/check_architecture.py
 
   backend:
     name: Backend quality
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: mediaos_ci
+          POSTGRES_PASSWORD: mediaos_ci_password
+          POSTGRES_DB: mediaos_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U mediaos_ci -d mediaos_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      POSTGRES_HOST: localhost
+      POSTGRES_PORT: "5432"
+      POSTGRES_USER: mediaos_ci
+      POSTGRES_PASSWORD: mediaos_ci_password
+      POSTGRES_DB: mediaos_ci
+      MINIO_ROOT_USER: ci-user
+      MINIO_ROOT_PASSWORD: ci-password
+      MEDIAOS_RUN_INTEGRATION: "1"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -34,7 +57,7 @@ jobs:
       - name: Mypy
         run: mypy backend/src scripts
       - name: Pytest
-        run: pytest backend/tests
+        run: alembic -c backend/alembic.ini upgrade head && pytest backend/tests
       - name: Build package
         run: python -m build
 
@@ -47,7 +70,7 @@ jobs:
         with:
           node-version: "22"
       - name: Install frontend dependencies
-        run: if [ -f package-lock.json ]; then npm ci; else npm install; fi
+        run: npm ci
       - name: ESLint
         run: npm run lint:frontend
       - name: TypeScript

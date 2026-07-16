@@ -1,0 +1,60 @@
+"""Typed Phase 0 domain states."""
+
+from enum import StrEnum
+
+
+class WorkflowState(StrEnum):
+    DRAFT = "DRAFT"
+    TOPIC_APPROVED = "TOPIC_APPROVED"
+    RESEARCHING = "RESEARCHING"
+    RESEARCH_REVIEW = "RESEARCH_REVIEW"
+    SCRIPTING = "SCRIPTING"
+    SCRIPT_REVIEW = "SCRIPT_REVIEW"
+    SCENE_PLANNING = "SCENE_PLANNING"
+    MEDIA_PRODUCTION = "MEDIA_PRODUCTION"
+    VOICE_PRODUCTION = "VOICE_PRODUCTION"
+    RENDERING = "RENDERING"
+    QUALITY_REVIEW = "QUALITY_REVIEW"
+    AWAITING_APPROVAL = "AWAITING_APPROVAL"
+    APPROVED = "APPROVED"
+    PUBLISHING = "PUBLISHING"
+    PUBLISHED = "PUBLISHED"
+    REJECTED = "REJECTED"
+    FAILED = "FAILED"
+
+
+class ActorType(StrEnum):
+    USER = "USER"
+    SYSTEM = "SYSTEM"
+    WORKER = "WORKER"
+
+
+class ProviderCallStatus(StrEnum):
+    PENDING = "PENDING"
+    RUNNING = "RUNNING"
+    SUCCEEDED = "SUCCEEDED"
+    FAILED = "FAILED"
+
+
+class ApprovalStatus(StrEnum):
+    PENDING = "PENDING"
+    APPROVED = "APPROVED"
+    REJECTED = "REJECTED"
+
+
+class TaskStatus(StrEnum):
+    PENDING = "PENDING"
+    RUNNING = "RUNNING"
+    SUCCEEDED = "SUCCEEDED"
+    RETRY = "RETRY"
+    FAILED = "FAILED"
+
+
+class ArtifactKind(StrEnum):
+    RESEARCH = "RESEARCH"
+    SCRIPT = "SCRIPT"
+    SCENE_PLAN = "SCENE_PLAN"
+    IMAGE = "IMAGE"
+    AUDIO = "AUDIO"
+    VIDEO = "VIDEO"
+    OTHER = "OTHER"

@@ -2,10 +2,17 @@ import nextVitals from "eslint-config-next/core-web-vitals";
 import nextTs from "eslint-config-next/typescript";
 
 const config = [
+  {
+    ignores: ["frontend/.next/**", "frontend/next-env.d.ts"],
+  },
   ...nextVitals,
   ...nextTs,
   {
-    ignores: [".next/**", "next-env.d.ts"],
+    settings: {
+      next: {
+        rootDir: "frontend/",
+      },
+    },
   },
 ];
 

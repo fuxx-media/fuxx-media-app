@@ -8,7 +8,10 @@
     "start:frontend": "next start frontend -H 0.0.0.0",
     "lint:frontend": "eslint frontend --config frontend/eslint.config.mjs --max-warnings=0",
     "typecheck:frontend": "tsc --project frontend/tsconfig.json --noEmit",
-    "format:check": "prettier --check frontend package.json"
+    "format:check": "prettier --check frontend package.json",
+    "lint": "npm run lint:frontend",
+    "typecheck": "npm run typecheck:frontend",
+    "build": "npm run build:frontend"
   },
   "dependencies": {
     "next": "16.2.10",
@@ -22,10 +25,12 @@
     "eslint": "^9.39.0",
     "eslint-config-next": "16.2.10",
     "prettier": "^3.6.0",
-    "typescript": "7.0.2"
+    "typescript": "6.0.3"
+  },
+  "overrides": {
+    "postcss": "8.5.10"
   },
   "engines": {
     "node": ">=22"
   }
 }
-

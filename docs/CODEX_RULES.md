@@ -14,10 +14,10 @@ These 32 rules govern every MediaOS change. Automated checks enforce syntax and 
 10. **External vendors only through internal interfaces.** Direct vendor SDK use is prohibited.
 11. **Providers do not change workflow states.** Architecture tests reject direct `current_state` assignments.
 12. **Workflow states change only through TransitionService.** Only `workflow_transition_service.py` is allowlisted for assignment.
-13. **Every state change is recorded.** Transition tests become a Phase 0.3 merge gate.
-14. **Every relevant action creates an AuditEvent.** Use-case integration tests become a merge gate.
+13. **Every state change is recorded.** The transition matrix integration test is a merge gate.
+14. **Every relevant action creates an AuditEvent.** API and workflow integration tests are a merge gate.
 15. **Audit events are immutable.** Database permissions/model behavior and tests enforce append-only behavior.
-16. **Money is integer cents.** Schema and type tests will reject floating-point money.
+16. **Money is integer cents.** Schema constraints and model tests reject invalid cent amounts.
 17. **Time is UTC.** Schema defaults and serialization tests will enforce timezone-aware UTC.
 18. **Primary keys are UUIDs.** Migration and model tests enforce UUID primary keys.
 19. **No secrets in the repository.** `.gitignore`, CI pattern checks, and the architecture checker enforce this.
@@ -50,4 +50,3 @@ These 32 rules govern every MediaOS change. Automated checks enforce syntax and 
 | Business correctness, authorization, and data safety | Tests where possible | Yes |
 
 Passing automation is necessary but not sufficient. Reviewers must reject scope expansion or unproved success even when CI is green.
-

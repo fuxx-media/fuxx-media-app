@@ -4,6 +4,7 @@
 !.env.example
 .local-certs/*.crt
 .local-certs/*.cer
+.local-tools/
 *.pem
 *.key
 credentials*.json

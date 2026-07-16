@@ -1,5 +1,32 @@
-# A real GitHub user or team must be configured before branch protection is enabled.
-# No identity is fabricated from local Git metadata.
-# Example after the repository owner supplies an identity:
-# * @organisation/mediaos-maintainers
+# Default owner for every repository path.
+* @fuxx-media
 
+# Repository governance and CI.
+/.github/ @fuxx-media
+
+# Application boundaries.
+/backend/ @fuxx-media
+/frontend/ @fuxx-media
+/backend/src/mediaos/worker/ @fuxx-media
+
+# Persistence and database migrations.
+/backend/migrations/ @fuxx-media
+/backend/alembic.ini @fuxx-media
+
+# Containers, deployment, and runtime configuration.
+/backend/Dockerfile @fuxx-media
+/frontend/Dockerfile @fuxx-media
+/docker-compose.yml @fuxx-media
+/.env.example @fuxx-media
+/Makefile @fuxx-media
+
+# Architecture constitution and enforcement.
+/docs/ARCHITECTURE.md @fuxx-media
+/docs/CODEX_RULES.md @fuxx-media
+/docs/PROJECT_CONSTITUTION.md @fuxx-media
+/docs/ADR/ @fuxx-media
+/scripts/check_architecture.py @fuxx-media
+
+# Authentication, authorization, and security-sensitive code.
+/backend/src/mediaos/api/auth.py @fuxx-media
+/backend/src/mediaos/security/ @fuxx-media

@@ -29,4 +29,8 @@
 
 # Authentication, authorization, and security-sensitive code.
 /backend/src/mediaos/api/auth.py @fuxx-media
+/backend/src/mediaos/api/auth_routes.py @fuxx-media
+/backend/src/mediaos/application/authentication_service.py @fuxx-media
+/backend/src/mediaos/application/intake_service.py @fuxx-media
+/backend/src/mediaos/security.py @fuxx-media
 /backend/src/mediaos/security/ @fuxx-media

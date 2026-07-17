@@ -35,9 +35,7 @@ def test_guard_allows_transition_service_mutation(
     check_architecture.check_current_state_mutation([allowed])
 
 
-def test_guard_allows_state_comparison(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_guard_allows_state_comparison(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(check_architecture, "ROOT", tmp_path)
     comparison = _write(
         tmp_path / "backend/src/mediaos/api/jobs.py",

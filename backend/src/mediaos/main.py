@@ -11,7 +11,9 @@ from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from mediaos import APP_NAME, APP_VERSION
+from mediaos.api.auth_routes import router as auth_router
 from mediaos.api.health import router as health_router
+from mediaos.api.phase_one import router as phase_one_router
 from mediaos.api.phase_zero import router as phase_zero_router
 from mediaos.application.errors import ApplicationError
 from mediaos.config import get_frontend_origins
@@ -37,15 +39,27 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=get_frontend_origins(),
     allow_methods=["GET", "POST"],
-    allow_headers=["Content-Type", "X-Actor-Id", "X-Actor-Type"],
+    allow_headers=["Content-Type", "X-CSRF-Token", "Idempotency-Key"],
+    allow_credentials=True,
 )
 app.include_router(health_router)
+app.include_router(auth_router)
 app.include_router(phase_zero_router)
+app.include_router(phase_one_router)
 
 
 @app.exception_handler(ApplicationError)
 async def application_error_handler(_: Request, exc: ApplicationError) -> JSONResponse:
-    status_code = 404 if exc.code == "JOB_NOT_FOUND" else 409
+    status_code = {
+        "AUTHENTICATION_REQUIRED": 401,
+        "INVALID_CREDENTIALS": 401,
+        "FORBIDDEN": 403,
+        "CSRF_VALIDATION_FAILED": 403,
+        "TENANT_BOUNDARY_VIOLATION": 403,
+        "JOB_NOT_FOUND": 404,
+        "STORED_FILE_NOT_FOUND": 404,
+        "UPLOAD_VALIDATION_FAILED": 422,
+    }.get(exc.code, 409)
     return JSONResponse(
         status_code=status_code,
         content={

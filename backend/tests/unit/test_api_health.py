@@ -24,8 +24,8 @@ def test_health_and_version_are_read_only_metadata() -> None:
     assert version_response.status_code == 200
     assert version_response.json() == {
         "name": "MediaOS",
-        "version": "0.1.0",
-        "phase": "Phase 0",
+        "version": "0.2.0",
+        "phase": "Phase 1",
     }
 
 

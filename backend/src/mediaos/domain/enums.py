@@ -29,6 +29,13 @@ class ActorType(StrEnum):
     WORKER = "WORKER"
 
 
+class RoleName(StrEnum):
+    ADMIN = "ADMIN"
+    BACKOFFICE = "BACKOFFICE"
+    REVIEWER = "REVIEWER"
+    SYSTEM_WORKER = "SYSTEM_WORKER"
+
+
 class ProviderCallStatus(StrEnum):
     PENDING = "PENDING"
     RUNNING = "RUNNING"

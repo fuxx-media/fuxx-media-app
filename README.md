@@ -1,8 +1,8 @@
 # MediaOS
 
-MediaOS is a modular-monolith foundation for a later, human-approved media production workflow. This repository implements the Phase 0 infrastructure and workflow kernel: core persistence, atomic transitions, audit history, PostgreSQL task claiming, internal APIs, documentation, CI, and architecture enforcement.
+MediaOS is a modular-monolith foundation for a human-approved media production workflow. Phase 1 adds persistent multi-tenant users, Argon2id passwords, revocable server sessions, CSRF and role enforcement, idempotent process intake, private verified uploads, audited downloads and durable queue handoff to the Phase 0 workflow kernel.
 
-No external AI provider, research workflow, media generation, publishing integration, multilingual system, or multi-tenant feature is implemented.
+No external AI provider, research workflow, media generation or publishing integration is activated.
 
 ## Prerequisites
 
@@ -43,6 +43,16 @@ docker compose --env-file .env.example up --build -d
 docker compose --env-file .env.example ps
 ```
 
+Create a local user only with an ephemeral password supplied to the process:
+
+```powershell
+docker compose --env-file .env.example exec `
+  -e MEDIAOS_BOOTSTRAP_PASSWORD='<local-only-password>' `
+  backend python -m mediaos.cli create-local-user `
+  --tenant-slug local-media --tenant-name 'Local Media' `
+  --email admin@example.com --role ADMIN
+```
+
 Local endpoints:
 
 - Frontend: <http://localhost:3000>
@@ -65,7 +75,7 @@ Deleting volumes is intentionally not part of the normal workflow.
 ```powershell
 docker compose run --rm backend ruff check backend/src backend/tests scripts
 docker compose run --rm backend mypy backend/src scripts/check_architecture.py
-docker compose run --rm backend pytest
+docker compose run --rm -e POSTGRES_DB=mediaos_phase1_test -e MEDIAOS_RUN_INTEGRATION=1 backend pytest
 docker compose run --rm backend python scripts/check_architecture.py
 docker compose run --rm frontend npm run lint:frontend
 docker compose run --rm frontend npm run typecheck:frontend
@@ -78,6 +88,6 @@ The GitHub-compatible workflow in `.github/workflows/ci.yml` runs the same categ
 
 ## Current scope
 
-Phase 0 supplies health/readiness/version and workflow APIs, ten core entities, a database-aware queue worker, a minimal Next.js status page, PostgreSQL 16, MinIO, Alembic migrations, and CI enforcement. Real providers, content production, artifact upload, production identity integration, and publishing remain explicit non-goals.
+Phase 1 supplies provider-independent persistent authentication, tenant and role boundaries, idempotent intake with optional verified upload, private MinIO storage, audited downloads and queue dispatch. The frontend provides status plus real login/logout proof without Local Storage tokens. Real providers, content production and publishing remain explicit non-goals.
 
-See [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md) and the files under [docs](docs) for authoritative scope and architecture decisions.
+See [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md), [docs/OPERATIONS.md](docs/OPERATIONS.md), [docs/TESTING.md](docs/TESTING.md), and [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md).

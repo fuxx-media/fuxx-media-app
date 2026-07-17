@@ -24,7 +24,7 @@ async def process_one_task() -> bool:
 
         async with session.begin():
             queue = QueueRepository(session)
-            if task.task_type == "HEARTBEAT":
+            if task.task_type in {"HEARTBEAT", "INTAKE_ACCEPTED"}:
                 await queue.complete(task.id)
                 LOGGER.info("task %s completed", task.id)
             else:

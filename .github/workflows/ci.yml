@@ -27,11 +27,11 @@ jobs:
         env:
           POSTGRES_USER: mediaos_ci
           POSTGRES_PASSWORD: mediaos_ci_password
-          POSTGRES_DB: mediaos_ci
+          POSTGRES_DB: mediaos_ci_test
         ports:
           - 5432:5432
         options: >-
-          --health-cmd "pg_isready -U mediaos_ci -d mediaos_ci"
+          --health-cmd "pg_isready -U mediaos_ci -d mediaos_ci_test"
           --health-interval 5s
           --health-timeout 5s
           --health-retries 20
@@ -40,9 +40,11 @@ jobs:
       POSTGRES_PORT: "5432"
       POSTGRES_USER: mediaos_ci
       POSTGRES_PASSWORD: mediaos_ci_password
-      POSTGRES_DB: mediaos_ci
+      POSTGRES_DB: mediaos_ci_test
       MINIO_ROOT_USER: ci-user
       MINIO_ROOT_PASSWORD: ci-password
+      MINIO_ENDPOINT: http://localhost:9000
+      MEDIAOS_PRIVATE_BUCKET: mediaos-ci-private
       MEDIAOS_RUN_INTEGRATION: "1"
     steps:
       - uses: actions/checkout@v4
@@ -50,14 +52,31 @@ jobs:
         with:
           python-version: "3.12"
           cache: pip
+      - name: Start private object storage
+        run: |
+          docker run --detach --name mediaos-ci-minio \
+            --publish 9000:9000 \
+            --env MINIO_ROOT_USER="$MINIO_ROOT_USER" \
+            --env MINIO_ROOT_PASSWORD="$MINIO_ROOT_PASSWORD" \
+            minio/minio:RELEASE.2025-04-22T22-12-26Z server /data
+          for attempt in {1..30}; do
+            if curl --fail --silent http://localhost:9000/minio/health/live >/dev/null; then
+              exit 0
+            fi
+            sleep 2
+          done
+          docker logs mediaos-ci-minio
+          exit 1
       - name: Install backend dependencies
         run: python -m pip install --upgrade pip && python -m pip install -e ".[dev]"
       - name: Ruff
         run: ruff check backend/src backend/tests scripts
       - name: Mypy
         run: mypy backend/src scripts
+      - name: Migrate empty database and repeat
+        run: alembic -c backend/alembic.ini upgrade head && alembic -c backend/alembic.ini upgrade head
       - name: Pytest
-        run: alembic -c backend/alembic.ini upgrade head && pytest backend/tests
+        run: pytest backend/tests
       - name: Build package
         run: python -m build
 
@@ -77,6 +96,8 @@ jobs:
         run: npm run typecheck:frontend
       - name: Build frontend
         run: npm run build:frontend
+      - name: Audit production dependencies
+        run: npm audit --omit=dev
 
   compose:
     name: Compose config

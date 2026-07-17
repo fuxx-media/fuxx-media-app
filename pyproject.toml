@@ -4,17 +4,21 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "mediaos"
-version = "0.1.0"
+version = "0.2.0"
 description = "MediaOS modular-monolith technical foundation"
 readme = "README.md"
 requires-python = ">=3.12,<3.13"
 dependencies = [
   "alembic>=1.14,<2",
+  "argon2-cffi>=25.1,<26",
   "asyncpg>=0.30,<1",
   "fastapi>=0.116,<1",
+  "email-validator>=2.2,<3",
   "httpx>=0.28,<1",
+  "minio>=7.2,<8",
   "psycopg[binary]>=3.2,<4",
   "pydantic-settings>=2.10,<3",
+  "python-multipart>=0.0.20,<1",
   "sqlalchemy[asyncio]>=2.0,<2.1",
   "uvicorn[standard]>=0.35,<1",
 ]

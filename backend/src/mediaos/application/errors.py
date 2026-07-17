@@ -30,3 +30,35 @@ class BudgetLimitExceededError(ApplicationError):
 
 class StatePrerequisiteError(ApplicationError):
     code = "STATE_PREREQUISITE_FAILED"
+
+
+class AuthenticationError(ApplicationError):
+    code = "AUTHENTICATION_REQUIRED"
+
+
+class InvalidCredentialsError(ApplicationError):
+    code = "INVALID_CREDENTIALS"
+
+
+class AuthorizationError(ApplicationError):
+    code = "FORBIDDEN"
+
+
+class CsrfError(ApplicationError):
+    code = "CSRF_VALIDATION_FAILED"
+
+
+class TenantBoundaryError(ApplicationError):
+    code = "TENANT_BOUNDARY_VIOLATION"
+
+
+class IdempotencyConflictError(ApplicationError):
+    code = "IDEMPOTENCY_CONFLICT"
+
+
+class UploadValidationError(ApplicationError):
+    code = "UPLOAD_VALIDATION_FAILED"
+
+
+class StoredFileNotFoundError(ApplicationError):
+    code = "STORED_FILE_NOT_FOUND"

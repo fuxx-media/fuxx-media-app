@@ -155,6 +155,13 @@ class ContentJob(IdentityMixin, TimestampMixin, Base):
         CheckConstraint("budget_limit_cents >= 0", name="ck_content_jobs_budget_nonnegative"),
         CheckConstraint("spent_cents >= 0", name="ck_content_jobs_spent_nonnegative"),
         Index("ix_content_jobs_tenant_state_created", "tenant_id", "current_state", "created_at"),
+        Index(
+            "ix_content_jobs_tenant_business_priority",
+            "tenant_id",
+            "business_status",
+            "priority",
+            "created_at",
+        ),
     )
 
     tenant_id: Mapped[UUID] = mapped_column(
@@ -782,7 +789,15 @@ class CostEntry(IdentityMixin, Base):
 
 class ApprovalRequest(IdentityMixin, Base):
     __tablename__ = "approval_requests"
-    __table_args__ = (Index("ix_approval_requests_job_status", "job_id", "status"),)
+    __table_args__ = (
+        Index("ix_approval_requests_job_status", "job_id", "status"),
+        Index(
+            "ix_approval_requests_revision",
+            "job_id",
+            "job_revision",
+            "invalidated_at",
+        ),
+    )
 
     job_id: Mapped[UUID] = mapped_column(
         PGUUID(as_uuid=True), ForeignKey("content_jobs.id", ondelete="CASCADE"), nullable=False

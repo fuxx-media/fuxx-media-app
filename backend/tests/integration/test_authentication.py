@@ -81,6 +81,22 @@ async def test_session_expiry_and_logout_revocation(
         assert expired.status_code == 401
 
 
+async def test_existing_session_is_rejected_after_tenant_deactivation(
+    integration_session: AsyncSession, tenant: Tenant
+) -> None:
+    user = await create_user(integration_session, tenant, RoleName.ADMIN)
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        logged_in = await login(client, tenant, user)
+        assert logged_in.status_code == 200
+
+        tenant.active = False
+        await integration_session.commit()
+
+        rejected = await client.get("/api/v1/auth/me")
+        assert rejected.status_code == 401
+        assert rejected.json()["code"] == "AUTHENTICATION_REQUIRED"
+
+
 async def test_csrf_role_and_tenant_boundaries(
     integration_session: AsyncSession, tenant: Tenant
 ) -> None:

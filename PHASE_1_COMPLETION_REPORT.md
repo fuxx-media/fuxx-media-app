@@ -22,7 +22,7 @@ Date: 2026-07-17
 
 ## Implemented
 
-- Tenant-scoped users, roles, Argon2id password hashes, server-side sessions, expiry, revocation, login, logout, strict cookies, and CSRF validation.
+- Tenant-scoped users, roles, Argon2id password hashes, server-side sessions, expiry, revocation, login, logout, strict cookies, CSRF validation, and immediate rejection of sessions belonging to deactivated tenants.
 - Server-derived actors and tenant/role enforcement on write and read routes; actor headers are no longer accepted as authentication.
 - Persistent idempotency with transaction-scoped PostgreSQL advisory locks.
 - Structured intake with optional private file upload, signature-based MIME validation, size limits, SHA-256, tenant-scoped deduplication, MinIO storage, atomic database records, initial workflow state, audit event, and queue task.
@@ -55,7 +55,7 @@ Date: 2026-07-17
 ## Acceptance evidence
 
 - Empty isolated database migration: successful from zero through all three revisions; second upgrade successful.
-- Pytest: `69 passed`.
+- Pytest: `70 passed`.
 - Ruff: passed.
 - Mypy strict: passed, 32 source files.
 - Frontend ESLint: passed with zero warnings.

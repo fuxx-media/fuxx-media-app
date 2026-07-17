@@ -82,8 +82,12 @@ class AuthenticationService:
         result = await self.session.execute(
             select(AuthSession, User)
             .join(User, User.id == AuthSession.user_id)
+            .join(Tenant, Tenant.id == User.tenant_id)
             .options(selectinload(User.roles))
-            .where(AuthSession.token_hash == digest_secret(session_token))
+            .where(
+                AuthSession.token_hash == digest_secret(session_token),
+                Tenant.active.is_(True),
+            )
         )
         row = result.one_or_none()
         if row is None:

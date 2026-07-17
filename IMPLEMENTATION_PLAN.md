@@ -2,7 +2,7 @@
 
 ## Scope and interpretation
 
-This plan covers the verified Phase 0 kernel and the completed Phase 1 persistent intake boundary. Provider execution remains outside the current scope.
+This plan covers the verified Phase 0 kernel, completed Phase 1 persistent intake and Phase 2 internal case processing. Provider execution remains outside the current scope.
 
 No technical contradiction blocks Phase 0.1. Two specification details are resolved conservatively:
 
@@ -19,6 +19,16 @@ No technical contradiction blocks Phase 0.1. Two specification details are resol
 - Atomic job, audit and queue creation with object-storage compensation.
 - Authenticated audited downloads and bounded queue failure handling.
 - Empty-database and repeated Alembic migration proof, security and browser tests.
+
+## Phase 2 – revision-safe internal case processing (completed)
+
+- Tenant-safe paginated worklists and detail views with real database state.
+- Assignment, expiring atomic claims, takeover and optimistic version conflict handling.
+- Classification, priority, wiedervorlage, immutable notes, checklists and evidence.
+- Revision-bound approval request, reviewer claim, rejection, approval and invalidation.
+- Server-side self-approval and stale-revision prevention.
+- Persistent worker recovery, bounded retry, terminal failure and audit events.
+- No mail, publishing, provider calls or other productive external effect.
 
 ## Work package 0.1 – repository and infrastructure
 
@@ -113,7 +123,7 @@ No technical contradiction blocks Phase 0.1. Two specification details are resol
 - 404, validation, version conflict, invalid transition, and secret-redaction tests pass.
 - No publisher, research, AI, or automatic-publication endpoint exists.
 
-## Work package 0.6 – internal frontend (not part of the current implementation)
+## Work package 0.6 – internal frontend (completed in Phase 2)
 
 ### Files
 

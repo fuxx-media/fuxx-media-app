@@ -41,3 +41,16 @@ Claims use `FOR UPDATE SKIP LOCKED`. Attempts are bounded. Failed attempts move 
 - `worker`: bounded task dispatch.
 
 `scripts/check_architecture.py` enforces the repository allowlist, single-database rule, forbidden providers, secret patterns and exclusive workflow-state mutation authority.
+
+## Phase 2 case processing
+
+`ContentJob` remains the aggregate root. Its technical `current_state`, business-facing
+`business_status`, queue status, approval status and provider state are separate dimensions.
+`version` is the authoritative case revision and is checked on every material mutation.
+`CaseProcessingService` owns row locks, claim expiry, optimistic version checks, approval
+invalidation and append-only revision/audit writes.
+
+Claims serialize human editing. Approval requests bind to one exact revision, may be claimed only
+by a human Admin or Reviewer, and reject the requester or last material editor as reviewer. Notes
+and case revisions are immutable in both ORM and PostgreSQL. Phase 2 creates internal queue events
+only; no provider, mail, publishing or external URL path is called.

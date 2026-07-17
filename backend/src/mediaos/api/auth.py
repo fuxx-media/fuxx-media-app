@@ -15,6 +15,7 @@ from mediaos.application.authentication_service import (
 from mediaos.application.errors import AuthenticationError, AuthorizationError, CsrfError
 from mediaos.database import get_session
 from mediaos.domain.actor import Actor
+from mediaos.domain.enums import RoleName
 from mediaos.domain.models import AuthSession
 from mediaos.security import digest_secret
 
@@ -68,4 +69,12 @@ async def require_review_actor(
 ) -> Actor:
     if context.actor.roles.isdisjoint(REVIEW_ROLES):
         raise AuthorizationError("Admin, Backoffice, or Reviewer role is required")
+    return context.actor
+
+
+async def require_approval_actor(
+    context: Annotated[SessionContext, Depends(require_csrf_context)],
+) -> Actor:
+    if context.actor.roles.isdisjoint({RoleName.ADMIN, RoleName.REVIEWER}):
+        raise AuthorizationError("Admin or Reviewer role is required")
     return context.actor

@@ -17,6 +17,13 @@ User credentials, session secrets, tenant business processes, uploaded files, au
 - Queue duplication: `SKIP LOCKED`, attempt counters, retry scheduling and persistent terminal failure.
 - Audit tampering: append-only ORM listeners and database trigger.
 - Secret leakage: environment-only credentials and architecture secret scanning.
+- Lost updates: expiring database claims plus `expected_version` optimistic locking.
+- Self approval: approval requests reject their requester and the last material editor; workers
+  cannot act as human reviewers.
+- Stale approval: every request binds to one revision and material changes persist an invalidation
+  timestamp before a new request can be created.
+- Internal-content injection: lengths are bounded and React renders notes/evidence as text; no
+  stored HTML or automatic external URL fetching exists.
 
 ## Residual risks
 

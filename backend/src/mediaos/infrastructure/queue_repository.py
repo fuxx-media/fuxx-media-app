@@ -3,7 +3,7 @@
 from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from mediaos.domain.enums import TaskStatus
@@ -36,6 +36,41 @@ class QueueRepository:
         task.locked_by = worker_id
         await self.session.flush()
         return task
+
+    async def recover_stale(self, *, timeout_seconds: int = 300) -> int:
+        cutoff = datetime.now(UTC) - timedelta(seconds=timeout_seconds)
+        terminal = await self.session.execute(
+            update(JobTask)
+            .where(
+                JobTask.status == TaskStatus.RUNNING,
+                JobTask.locked_at < cutoff,
+                JobTask.attempts >= JobTask.max_attempts,
+            )
+            .values(
+                status=TaskStatus.FAILED,
+                locked_at=None,
+                locked_by=None,
+                last_error="worker claim expired after final attempt",
+            )
+        )
+        retryable = await self.session.execute(
+            update(JobTask)
+            .where(
+                JobTask.status == TaskStatus.RUNNING,
+                JobTask.locked_at < cutoff,
+                JobTask.attempts < JobTask.max_attempts,
+            )
+            .values(
+                status=TaskStatus.RETRY,
+                locked_at=None,
+                locked_by=None,
+                available_at=datetime.now(UTC),
+                last_error="worker claim expired before completion",
+            )
+        )
+        terminal_count = int(getattr(terminal, "rowcount", 0) or 0)
+        retryable_count = int(getattr(retryable, "rowcount", 0) or 0)
+        return terminal_count + retryable_count
 
     async def complete(self, task_id: UUID) -> JobTask:
         task = await self._locked(task_id)

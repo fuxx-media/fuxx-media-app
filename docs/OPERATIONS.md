@@ -36,3 +36,13 @@ Check `/health`, `/ready`, `/version`, frontend HTTP, worker heartbeat, `alembic
 ## Rollback
 
 Application rollback is a Git commit/image rollback. Migration downgrade exists for controlled non-production recovery, but production rollback must first preserve uploaded objects and database backup. New MinIO objects are transaction-compensated on intake failure.
+
+## Phase 2 operations
+
+Expired human claims can be taken over through the normal claim endpoint and are audited. The
+worker recovers stale `RUNNING` queue claims after five minutes: retryable work returns to `RETRY`,
+while exhausted work becomes persistent `FAILED`. Inspect `job_tasks.last_error` and matching
+`QUEUE_TASK_COMPLETED`/`QUEUE_TASK_FAILED` audit events before manual intervention.
+
+Phase 2 has no outbound-provider flag to enable. `provider_configurations.enabled` must remain
+false, and no mail, publishing or customer communication is part of this release.

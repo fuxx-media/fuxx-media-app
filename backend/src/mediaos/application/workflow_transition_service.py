@@ -87,7 +87,7 @@ class WorkflowTransitionService:
         expected_version: int,
     ) -> ContentJob:
         async with self.session.begin():
-            job = await self.jobs.get_for_update(job_id)
+            job = await self.jobs.get_for_update(job_id, tenant_id=actor.tenant_id)
             if job is None:
                 raise JobNotFoundError("Content job was not found", details={"job_id": str(job_id)})
             if job.version != expected_version:
@@ -126,6 +126,7 @@ class WorkflowTransitionService:
             )
             self.session.add(
                 AuditEvent(
+                    tenant_id=job.tenant_id,
                     job_id=job.id,
                     actor_id=actor.id,
                     actor_type=actor.type,

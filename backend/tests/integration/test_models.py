@@ -25,20 +25,22 @@ from mediaos.domain.models import (
     JobTask,
     ProviderCall,
     ProviderConfiguration,
+    Tenant,
 )
 
 pytestmark = pytest.mark.integration
 
 
 async def test_all_core_entities_use_uuid_utc_and_integer_cents(
-    integration_session: AsyncSession,
+    integration_session: AsyncSession, tenant: Tenant
 ) -> None:
     actor_id = uuid4()
-    channel = Channel(name="Integration", slug=f"integration-{uuid4().hex}")
+    channel = Channel(tenant_id=tenant.id, name="Integration", slug=f"integration-{uuid4().hex}")
     provider = ProviderConfiguration(name=f"provider-{uuid4().hex}", provider_type="fake")
     integration_session.add_all([channel, provider])
     await integration_session.flush()
     job = ContentJob(
+        tenant_id=tenant.id,
         channel_id=channel.id,
         title="Model proof",
         budget_limit_cents=1_000,
@@ -68,6 +70,7 @@ async def test_all_core_entities_use_uuid_utc_and_integer_cents(
             size_bytes=42,
         ),
         AuditEvent(
+            tenant_id=tenant.id,
             job_id=job.id,
             actor_id=actor_id,
             actor_type=ActorType.USER,
@@ -91,19 +94,29 @@ async def test_all_core_entities_use_uuid_utc_and_integer_cents(
     assert call.cost_cents == 125
 
 
-async def test_negative_cent_amount_is_rejected(integration_session: AsyncSession) -> None:
-    channel = Channel(name="Constraint", slug=f"constraint-{uuid4().hex}")
+async def test_negative_cent_amount_is_rejected(
+    integration_session: AsyncSession, tenant: Tenant
+) -> None:
+    channel = Channel(tenant_id=tenant.id, name="Constraint", slug=f"constraint-{uuid4().hex}")
     integration_session.add(channel)
     await integration_session.flush()
     integration_session.add(
-        ContentJob(channel_id=channel.id, title="Invalid", budget_limit_cents=-1)
+        ContentJob(
+            tenant_id=tenant.id,
+            channel_id=channel.id,
+            title="Invalid",
+            budget_limit_cents=-1,
+        )
     )
     with pytest.raises(IntegrityError):
         await integration_session.flush()
 
 
-async def test_audit_event_is_immutable_in_database(integration_session: AsyncSession) -> None:
+async def test_audit_event_is_immutable_in_database(
+    integration_session: AsyncSession, tenant: Tenant
+) -> None:
     event = AuditEvent(
+        tenant_id=tenant.id,
         actor_id=uuid4(),
         actor_type=ActorType.SYSTEM,
         event_type="IMMUTABLE",

@@ -3,6 +3,7 @@
 .env*
 !.env.example
 .venv
+.local-tools
 node_modules
 frontend/.next
 **/__pycache__
@@ -11,4 +12,3 @@ frontend/.next
 **/.ruff_cache
 storage/*
 PHASE_0_1_CONFLICT_REPORT.md
-

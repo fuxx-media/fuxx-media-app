@@ -1,4 +1,4 @@
-"""Phase 0.1 architecture and safety checks."""
+"""MediaOS architecture and safety checks."""
 
 from __future__ import annotations
 
@@ -20,6 +20,7 @@ ALLOWED_TOP_LEVEL = {
     "Makefile",
     "PHASE_0_1_CONFLICT_REPORT.md",
     "PHASE_0_COMPLETION_REPORT.md",
+    "PHASE_1_COMPLETION_REPORT.md",
     "README.md",
     "backend",
     "docker-compose.yml",
@@ -85,6 +86,7 @@ TEXT_SUFFIXES = {
 def iter_project_files() -> list[Path]:
     ignored_parts = {
         ".git",
+        ".local-tools",
         ".mypy_cache",
         ".next",
         ".pytest_cache",

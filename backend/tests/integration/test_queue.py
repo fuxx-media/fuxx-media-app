@@ -8,20 +8,25 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from mediaos.database import get_session_factory
 from mediaos.domain.enums import TaskStatus
-from mediaos.domain.models import Channel, ContentJob, JobTask
+from mediaos.domain.models import Channel, ContentJob, JobTask, Tenant
 from mediaos.infrastructure.queue_repository import QueueRepository
 
 pytestmark = pytest.mark.integration
 
 
 async def test_skip_locked_success_retry_and_max_attempts(
-    integration_session: AsyncSession,
+    integration_session: AsyncSession, tenant: Tenant
 ) -> None:
     async with integration_session.begin():
-        channel = Channel(name="Queue", slug=f"queue-{uuid4().hex}")
+        channel = Channel(tenant_id=tenant.id, name="Queue", slug=f"queue-{uuid4().hex}")
         integration_session.add(channel)
         await integration_session.flush()
-        job = ContentJob(channel_id=channel.id, title="Queue", budget_limit_cents=0)
+        job = ContentJob(
+            tenant_id=tenant.id,
+            channel_id=channel.id,
+            title="Queue",
+            budget_limit_cents=0,
+        )
         integration_session.add(job)
         await integration_session.flush()
         created_at = datetime.now(UTC)

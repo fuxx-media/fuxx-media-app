@@ -24,6 +24,7 @@ from mediaos.domain.models import (
     Channel,
     ContentJob,
     CostEntry,
+    Tenant,
     WorkflowTransition,
 )
 
@@ -34,12 +35,15 @@ ALL_ALLOWED_EDGES = [
 ]
 
 
-async def _job(session: AsyncSession, state: WorkflowState, budget: int = 1_000) -> ContentJob:
+async def _job(
+    session: AsyncSession, tenant: Tenant, state: WorkflowState, budget: int = 1_000
+) -> ContentJob:
     async with session.begin():
-        channel = Channel(name="Workflow", slug=f"workflow-{uuid4().hex}")
+        channel = Channel(tenant_id=tenant.id, name="Workflow", slug=f"workflow-{uuid4().hex}")
         session.add(channel)
         await session.flush()
         job = ContentJob(
+            tenant_id=tenant.id,
             channel_id=channel.id,
             title="Transition proof",
             current_state=state,
@@ -72,9 +76,12 @@ async def _job(session: AsyncSession, state: WorkflowState, budget: int = 1_000)
 
 @pytest.mark.parametrize(("source", "target"), ALL_ALLOWED_EDGES)
 async def test_every_allowed_transition_is_recorded_atomically(
-    integration_session: AsyncSession, source: WorkflowState, target: WorkflowState
+    integration_session: AsyncSession,
+    tenant: Tenant,
+    source: WorkflowState,
+    target: WorkflowState,
 ) -> None:
-    job = await _job(integration_session, source)
+    job = await _job(integration_session, tenant, source)
     transitioned = await WorkflowTransitionService(integration_session).transition_job(
         job.id, target, ACTOR, "matrix proof", 1
     )
@@ -90,8 +97,10 @@ async def test_every_allowed_transition_is_recorded_atomically(
     assert audit_count == 1
 
 
-async def test_invalid_transition_rolls_back(integration_session: AsyncSession) -> None:
-    job = await _job(integration_session, WorkflowState.DRAFT)
+async def test_invalid_transition_rolls_back(
+    integration_session: AsyncSession, tenant: Tenant
+) -> None:
+    job = await _job(integration_session, tenant, WorkflowState.DRAFT)
     with pytest.raises(InvalidStateTransitionError):
         await WorkflowTransitionService(integration_session).transition_job(
             job.id, WorkflowState.PUBLISHED, ACTOR, None, 1
@@ -101,8 +110,10 @@ async def test_invalid_transition_rolls_back(integration_session: AsyncSession) 
     assert job.version == 1
 
 
-async def test_version_conflict_rolls_back(integration_session: AsyncSession) -> None:
-    job = await _job(integration_session, WorkflowState.DRAFT)
+async def test_version_conflict_rolls_back(
+    integration_session: AsyncSession, tenant: Tenant
+) -> None:
+    job = await _job(integration_session, tenant, WorkflowState.DRAFT)
     with pytest.raises(VersionConflictError):
         await WorkflowTransitionService(integration_session).transition_job(
             job.id, WorkflowState.TOPIC_APPROVED, ACTOR, None, 99
@@ -111,8 +122,10 @@ async def test_version_conflict_rolls_back(integration_session: AsyncSession) ->
     assert job.version == 1
 
 
-async def test_budget_limit_rolls_back_all_records(integration_session: AsyncSession) -> None:
-    job = await _job(integration_session, WorkflowState.DRAFT, budget=10)
+async def test_budget_limit_rolls_back_all_records(
+    integration_session: AsyncSession, tenant: Tenant
+) -> None:
+    job = await _job(integration_session, tenant, WorkflowState.DRAFT, budget=10)
     job_id = job.id
     async with integration_session.begin():
         integration_session.add(CostEntry(job_id=job.id, category="test", amount_cents=11))

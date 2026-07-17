@@ -11,6 +11,10 @@ Migration `32df0ee0c2a1` extends the Phase 0 kernel without replacing it.
 
 `Channel`, `ContentJob`, and `AuditEvent` now carry tenant IDs. The migration creates a fixed legacy tenant and safely backfills existing Phase 0 records before adding non-null constraints.
 
+Provider configuration names are unique within a tenant. Global configurations use a separate
+partial unique index, so two tenants may use the same human-readable provider name without sharing
+configuration or credentials.
+
 ## Intake persistence
 
 - `IdempotencyRecord`: unique tenant/scope/key, request digest and completed response.

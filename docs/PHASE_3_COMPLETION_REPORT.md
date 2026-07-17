@@ -29,7 +29,8 @@ write.
 - The final Compose images started with PostgreSQL, MinIO, backend, worker and frontend healthy;
   the migration container exited `0`. Existing PostgreSQL and MinIO volumes remained mounted.
 - The live database and an isolated empty database reached the single Alembic head
-  `b5e6f7a8c9d0`; repeating `upgrade head` succeeded.
+  `c6f7a8b9d0e1`; repeating `upgrade head` succeeded. The follow-up migration scopes provider
+  configuration names to their tenant while keeping global names separately unique.
 - The final backend image passed 91 tests. Ruff, Mypy strict across 42 source files, frontend lint,
   TypeScript, production build, architecture/secret guard, Compose validation, npm audit with zero
   vulnerabilities, Python sdist and wheel all passed.
@@ -39,6 +40,8 @@ write.
   disabled productive execution and logout. Browser console errors and warnings: none.
 - The signed localhost callback returned `200`; replay returned `409`; invalid signature and expired
   timestamp returned `422`. Both callback gates were restored to `false` afterward.
+- Valid callback evidence received after an order was discarded or invalidated was persisted and
+  audited without reviving that terminal or gated order state.
 - PostgreSQL retained seven execution orders with no missing or orphaned outbox rows. The maximum
   duplicate count per request fingerprint was one, every order had `external_effect=false`, result
   artifact hashes were valid SHA-256 values, and persisted callback payloads contained no test

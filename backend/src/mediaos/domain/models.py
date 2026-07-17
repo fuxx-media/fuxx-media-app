@@ -21,6 +21,7 @@ from sqlalchemy import (
     UniqueConstraint,
     event,
     func,
+    text,
 )
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
@@ -263,7 +264,21 @@ class AuditEvent(IdentityMixin, Base):
 
 class ProviderConfiguration(IdentityMixin, TimestampMixin, Base):
     __tablename__ = "provider_configurations"
-    __table_args__ = (UniqueConstraint("name", name="uq_provider_configurations_name"),)
+    __table_args__ = (
+        Index(
+            "uq_provider_configurations_global_name",
+            "name",
+            unique=True,
+            postgresql_where=text("tenant_id IS NULL"),
+        ),
+        Index(
+            "uq_provider_configurations_tenant_name",
+            "tenant_id",
+            "name",
+            unique=True,
+            postgresql_where=text("tenant_id IS NOT NULL"),
+        ),
+    )
 
     name: Mapped[str] = mapped_column(String(100), nullable=False)
     tenant_id: Mapped[UUID | None] = mapped_column(

@@ -122,8 +122,9 @@ async def test_configuration_dry_run_masking_gates_idempotency_roles_and_tenants
         admin_csrf = await login(admin_client, context, context.admin)
         backoffice_csrf = await login(backoffice_client, context, context.backoffice)
         reviewer_csrf = await login(reviewer_client, context, context.reviewer)
+        shared_provider_name = "Lokaler Simulationsprovider"
         provider, provider_id, capability_id = await configure_provider(
-            admin_client, admin_csrf
+            admin_client, admin_csrf, name=shared_provider_name
         )
         serialized = str(provider)
         assert "must-not-leak" not in serialized
@@ -197,12 +198,21 @@ async def test_configuration_dry_run_masking_gates_idempotency_roles_and_tenants
         integration_session.add(other_tenant)
         await integration_session.flush()
         other_user = await add_user(
-            integration_session, other_tenant, "other-provider", RoleName.BACKOFFICE
+            integration_session,
+            other_tenant,
+            "other-provider",
+            RoleName.ADMIN,
+            RoleName.BACKOFFICE,
         )
         await integration_session.commit()
         other_context = type(context)(other_tenant, other_user, other_user, other_user, context.job)
         async with AsyncClient(transport=transport, base_url="http://test") as other_client:
             other_csrf = await login(other_client, other_context, other_user)
+            other_provider, other_provider_id, _ = await configure_provider(
+                other_client, other_csrf, name=shared_provider_name
+            )
+            assert other_provider["name"] == shared_provider_name
+            assert other_provider_id != provider_id
             cross_tenant = await other_client.post(
                 f"/api/v1/providers/{provider_id}/dry-runs",
                 headers=headers(other_csrf, "cross-tenant"),

@@ -127,6 +127,36 @@ async def test_callback_signature_timestamp_replay_correlation_and_audit(
         await integration_session.refresh(stored_order)
         assert stored_order is not None and stored_order.status == ExecutionStatus.SUCCEEDED
 
+        stored_order.status = ExecutionStatus.DISCARDED
+        await integration_session.commit()
+        discarded_callback = await client.post(
+            f"/api/v1/provider-callbacks/{provider_id}",
+            content=raw,
+            headers=signed_headers(
+                raw,
+                order["correlation_id"],
+                event_id="callback-after-discard",
+            ),
+        )
+        assert discarded_callback.status_code == 200
+        await integration_session.refresh(stored_order)
+        assert stored_order.status == ExecutionStatus.DISCARDED
+
+        stored_order.status = ExecutionStatus.INVALIDATED
+        await integration_session.commit()
+        invalidated_callback = await client.post(
+            f"/api/v1/provider-callbacks/{provider_id}",
+            content=raw,
+            headers=signed_headers(
+                raw,
+                order["correlation_id"],
+                event_id="callback-after-invalidation",
+            ),
+        )
+        assert invalidated_callback.status_code == 200
+        await integration_session.refresh(stored_order)
+        assert stored_order.status == ExecutionStatus.INVALIDATED
+
         replay = await client.post(
             f"/api/v1/provider-callbacks/{provider_id}", content=raw, headers=valid_headers
         )
@@ -169,8 +199,10 @@ async def test_callback_signature_timestamp_replay_correlation_and_audit(
         assert unknown_correlation.status_code == 422
         assert "local-callback-test-secret" not in str(provider_payload)
 
-    assert await integration_session.scalar(select(func.count(CallbackReceipt.id))) == 1
-    receipt = await integration_session.scalar(select(CallbackReceipt))
+    assert await integration_session.scalar(select(func.count(CallbackReceipt.id))) == 3
+    receipt = await integration_session.scalar(
+        select(CallbackReceipt).where(CallbackReceipt.event_id == "callback-valid")
+    )
     assert receipt is not None
     assert receipt.signature_valid is True
     assert receipt.payload_hash == hashlib.sha256(raw).hexdigest()
@@ -180,3 +212,17 @@ async def test_callback_signature_timestamp_replay_correlation_and_audit(
         (await integration_session.scalars(select(AuditEvent.event_type))).all()
     )
     assert "PROVIDER_CALLBACK_ACCEPTED" in event_types
+    callback_audits = list(
+        (
+            await integration_session.scalars(
+                select(AuditEvent).where(
+                    AuditEvent.event_type == "PROVIDER_CALLBACK_ACCEPTED"
+                ).order_by(AuditEvent.created_at, AuditEvent.id)
+            )
+        ).all()
+    )
+    assert [event.payload["state_transition_applied"] for event in callback_audits] == [
+        True,
+        False,
+        False,
+    ]

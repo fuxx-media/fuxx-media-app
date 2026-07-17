@@ -135,10 +135,17 @@ class CallbackService:
             )
         )
         await self.session.flush()
-        if normalized.normalized_status == "SUCCEEDED":
+        previous_status = order.status
+        transition_allowed = previous_status in {
+            ExecutionStatus.QUEUED,
+            ExecutionStatus.RUNNING,
+            ExecutionStatus.RETRY,
+            ExecutionStatus.AMBIGUOUS,
+        }
+        if transition_allowed and normalized.normalized_status == "SUCCEEDED":
             order.status = ExecutionStatus.SUCCEEDED
             order.completed_at = datetime.now(UTC)
-        elif normalized.normalized_status == "AMBIGUOUS":
+        elif transition_allowed and normalized.normalized_status == "AMBIGUOUS":
             order.status = ExecutionStatus.AMBIGUOUS
         self.session.add(
             AuditEvent(
@@ -152,6 +159,8 @@ class CallbackService:
                     "execution_order_id": str(order.id),
                     "event_id": event_id,
                     "normalized_status": normalized.normalized_status,
+                    "previous_status": previous_status.value,
+                    "state_transition_applied": transition_allowed,
                 },
             )
         )

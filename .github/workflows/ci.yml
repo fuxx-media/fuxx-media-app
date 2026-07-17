@@ -74,7 +74,10 @@ jobs:
       - name: Mypy
         run: mypy backend/src scripts
       - name: Migrate empty database and repeat
-        run: alembic -c backend/alembic.ini upgrade head && alembic -c backend/alembic.ini upgrade head
+        run: |
+          alembic -c backend/alembic.ini upgrade head
+          alembic -c backend/alembic.ini upgrade head
+          alembic -c backend/alembic.ini check
       - name: Pytest
         run: pytest backend/tests
       - name: Build package

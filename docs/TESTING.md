@@ -16,7 +16,7 @@ docker compose run --rm --no-deps `
   backend pytest backend/tests
 ```
 
-The suite covers login success/failure, expiry, revocation, CSRF, roles, tenant isolation, intake, MIME and size rejection, private upload/download, deduplication, parallel idempotency, queue locks/retry/terminal failure, workflow atomicity and immutable audit history. CI migrates an empty database twice before running tests.
+The suite covers login success/failure, expiry, revocation, CSRF, roles, tenant isolation, intake, MIME and size rejection, private upload/download, deduplication, parallel idempotency, queue locks/retry/terminal failure, workflow atomicity and immutable audit history. CI migrates an empty database twice and runs `alembic check` to detect migration/model drift before running tests.
 
 Phase 2 additionally covers paginated and filtered worklists, cross-tenant hiding, assignment,
 claim conflict/expiry/takeover, optimistic locking, immutable notes, checklist prerequisites,

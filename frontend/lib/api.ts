@@ -4,6 +4,8 @@ import type {
   LoginResponse,
   ReadinessResponse,
   VersionResponse,
+  CaseDetail,
+  CaseSummary,
 } from "@/types/system";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
@@ -44,6 +46,14 @@ async function writeJson<T>(path: string, body: unknown, csrfToken?: string): Pr
   return (await response.json()) as T;
 }
 
+export function postJson<T>(path: string, body: unknown = {}): Promise<T> {
+  const csrf = readCsrfCookie();
+  if (!csrf) {
+    return Promise.reject(new Error("CSRF-Cookie fehlt"));
+  }
+  return writeJson<T>(path, body, csrf);
+}
+
 export function fetchReadiness(): Promise<ReadinessResponse> {
   return requestJson<ReadinessResponse>("/api/v1/ready");
 }
@@ -70,4 +80,17 @@ export function readCsrfCookie(): string | null {
     .map((part) => part.trim())
     .find((part) => part.startsWith("mediaos_csrf="));
   return pair ? decodeURIComponent(pair.slice("mediaos_csrf=".length)) : null;
+}
+
+export function fetchCases(query = "open"): Promise<{
+  items: CaseSummary[];
+  page: number;
+  page_size: number;
+  total: number;
+}> {
+  return requestJson(`/api/v1/cases?queue=${encodeURIComponent(query)}&page_size=50`);
+}
+
+export function fetchCaseDetail(jobId: string): Promise<CaseDetail> {
+  return requestJson<CaseDetail>(`/api/v1/cases/${jobId}`);
 }

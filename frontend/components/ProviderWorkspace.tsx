@@ -398,7 +398,11 @@ export function ProviderWorkspace({ user }: Props) {
                   Fehler manuell wiederaufnehmen
                 </button>
                 <button
-                  disabled={busy || selectedExecution.status === "SUCCEEDED" || !reason.trim()}
+                  disabled={
+                    busy ||
+                    !["DEAD_LETTER", "AMBIGUOUS"].includes(selectedExecution.status) ||
+                    !reason.trim()
+                  }
                   onClick={() => void lifecycleAction("discard")}
                   type="button"
                 >

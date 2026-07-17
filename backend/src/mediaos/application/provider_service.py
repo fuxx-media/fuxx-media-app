@@ -847,8 +847,13 @@ class ProviderService:
         reason = reason.strip()
         if not reason:
             raise ProviderValidationError("Discarding an execution requires a reason")
-        if order.status == ExecutionStatus.SUCCEEDED:
-            raise ProviderValidationError("Successful execution evidence cannot be discarded")
+        if order.status not in {
+            ExecutionStatus.DEAD_LETTER,
+            ExecutionStatus.AMBIGUOUS,
+        }:
+            raise ProviderValidationError(
+                "Only permanent or ambiguous failures can be discarded"
+            )
         order.status = ExecutionStatus.DISCARDED
         order.discard_reason = reason
         order.completed_at = datetime.now(UTC)

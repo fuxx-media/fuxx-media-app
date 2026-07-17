@@ -399,6 +399,13 @@ async def test_outbox_worker_retry_dead_letter_manual_resume_discard_and_idempot
         assert discarded.status_code == 200
         assert discarded.json()["status"] == "DISCARDED"
         assert discarded.json()["discard_reason"]
+        discarded_again = await client.post(
+            f"/api/v1/executions/{permanent_id}/discard",
+            headers=headers(admin_csrf),
+            json={"reason": "Must not create a duplicate terminal audit event"},
+        )
+        assert discarded_again.status_code == 422
+        assert discarded_again.json()["code"] == "PROVIDER_VALIDATION_FAILED"
 
     event_types = set(
         (await integration_session.scalars(select(AuditEvent.event_type))).all()

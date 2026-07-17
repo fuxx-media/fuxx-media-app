@@ -17,3 +17,8 @@ docker compose run --rm --no-deps `
 ```
 
 The suite covers login success/failure, expiry, revocation, CSRF, roles, tenant isolation, intake, MIME and size rejection, private upload/download, deduplication, parallel idempotency, queue locks/retry/terminal failure, workflow atomicity and immutable audit history. CI migrates an empty database twice before running tests.
+
+Phase 2 additionally covers paginated and filtered worklists, cross-tenant hiding, assignment,
+claim conflict/expiry/takeover, optimistic locking, immutable notes, checklist prerequisites,
+self-approval and role rejection, revision-bound approval/rejection, approval invalidation,
+evidence, worker restart recovery and persistent terminal queue failure.

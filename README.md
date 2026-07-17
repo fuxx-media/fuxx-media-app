@@ -1,6 +1,6 @@
 # MediaOS
 
-MediaOS is a modular-monolith foundation for a human-approved media production workflow. Phase 1 adds persistent multi-tenant users, Argon2id passwords, revocable server sessions, CSRF and role enforcement, idempotent process intake, private verified uploads, audited downloads and durable queue handoff to the Phase 0 workflow kernel.
+MediaOS is a modular-monolith foundation for a human-approved media production workflow. Phase 2 adds tenant-safe worklists, expiring edit claims, classification, checklists, internal notes and evidence, revision-bound four-eyes approval, audit history and durable internal worker continuation to the Phase 1 authenticated intake.
 
 No external AI provider, research workflow, media generation or publishing integration is activated.
 
@@ -75,7 +75,7 @@ Deleting volumes is intentionally not part of the normal workflow.
 ```powershell
 docker compose run --rm backend ruff check backend/src backend/tests scripts
 docker compose run --rm backend mypy backend/src scripts/check_architecture.py
-docker compose run --rm -e POSTGRES_DB=mediaos_phase1_test -e MEDIAOS_RUN_INTEGRATION=1 backend pytest
+docker compose run --rm -e POSTGRES_DB=mediaos_phase2_test -e MEDIAOS_RUN_INTEGRATION=1 backend pytest
 docker compose run --rm backend python scripts/check_architecture.py
 docker compose run --rm frontend npm run lint:frontend
 docker compose run --rm frontend npm run typecheck:frontend
@@ -88,6 +88,6 @@ The GitHub-compatible workflow in `.github/workflows/ci.yml` runs the same categ
 
 ## Current scope
 
-Phase 1 supplies provider-independent persistent authentication, tenant and role boundaries, idempotent intake with optional verified upload, private MinIO storage, audited downloads and queue dispatch. The frontend provides status plus real login/logout proof without Local Storage tokens. Real providers, content production and publishing remain explicit non-goals.
+Phase 2 supplies provider-independent internal processing from authenticated intake through a revision-safe decision. The frontend exposes real lists, details, claims, checklists, notes, evidence and approval actions without Local Storage tokens. Real providers, customer communication, content production and publishing remain explicit non-goals.
 
 See [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md), [docs/OPERATIONS.md](docs/OPERATIONS.md), [docs/TESTING.md](docs/TESTING.md), and [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md).

@@ -44,5 +44,19 @@ worker recovers stale `RUNNING` queue claims after five minutes: retryable work 
 while exhausted work becomes persistent `FAILED`. Inspect `job_tasks.last_error` and matching
 `QUEUE_TASK_COMPLETED`/`QUEUE_TASK_FAILED` audit events before manual intervention.
 
-Phase 2 has no outbound-provider flag to enable. `provider_configurations.enabled` must remain
-false, and no mail, publishing or customer communication is part of this release.
+Real provider configurations must remain absent or disabled. Only the local simulation provider may
+be enabled, and no mail, publishing or customer communication is part of this release.
+
+## Phase 3 operations
+
+Configure only the local simulation provider through the authenticated Admin UI. Supply
+`MEDIAOS_SIMULATION_CALLBACK_SECRET` only in the local process environment when signed callback
+tests are intentionally enabled; never store the value in Git or PostgreSQL. The persisted end state
+must be: global integration active, simulation enabled, dry-run enabled, productive execution false,
+real providers absent/disabled and callback intake false.
+
+Inspect `execution_orders`, `outbox_events`, `execution_attempts`, `retry_plans`,
+`provider_responses`, `result_artifacts` and provider-prefixed `audit_events` together. An ambiguous
+status is not success. Manual resume and final discard are Admin-only, require a reason and append
+audit evidence. After a worker restart, stale claims become retryable or dead-letter according to
+their attempt limit. Do not manually rewrite started payloads or completed evidence.

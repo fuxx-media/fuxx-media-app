@@ -126,6 +126,8 @@ class CaseProcessingService:
         async with self.session.begin():
             job = await self._locked_job(actor, job_id)
             self._expect_version(job, expected_version)
+            if job.business_status == CaseStatus.COMPLETED:
+                raise ApprovalConflictError("Completed cases cannot be claimed or changed")
             now = datetime.now(UTC)
             previous_owner = job.claimed_by
             if (
@@ -450,7 +452,7 @@ class CaseProcessingService:
             CaseStatus.REJECTED,
         }:
             job.business_status = CaseStatus.IN_PROGRESS
-        await self.session.execute(
+        invalidated = await self.session.execute(
             update(ApprovalRequest)
             .where(
                 ApprovalRequest.job_id == job.id,
@@ -458,6 +460,7 @@ class CaseProcessingService:
             )
             .values(invalidated_at=datetime.now(UTC))
         )
+        invalidated_count = int(getattr(invalidated, "rowcount", 0) or 0)
         self.session.add(
             CaseRevision(
                 job_id=job.id,
@@ -467,6 +470,13 @@ class CaseProcessingService:
                 snapshot=case_snapshot(job),
             )
         )
+        if invalidated_count:
+            self._audit(
+                job,
+                actor,
+                "APPROVAL_INVALIDATED",
+                {"new_revision": job.version, "invalidated_requests": invalidated_count},
+            )
 
     async def _locked_job(self, actor: Actor, job_id: UUID) -> ContentJob:
         job = await self.session.scalar(
@@ -506,6 +516,8 @@ class CaseProcessingService:
 
     @staticmethod
     def _require_claim(job: ContentJob, actor: Actor) -> None:
+        if job.business_status == CaseStatus.COMPLETED:
+            raise ApprovalConflictError("Completed cases cannot be changed")
         now = datetime.now(UTC)
         if job.claimed_by != actor.id or not job.claim_expires_at or job.claim_expires_at <= now:
             raise ClaimConflictError("An active claim owned by the actor is required")

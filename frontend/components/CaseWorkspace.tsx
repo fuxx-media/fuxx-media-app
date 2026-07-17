@@ -57,6 +57,7 @@ export function CaseWorkspace({ user }: Props) {
   const pendingApproval = selected?.approvals.find(
     (approval) => approval.status === "PENDING" && !approval.invalidated_at,
   );
+  const isCompleted = selected?.business_status === "COMPLETED";
 
   return (
     <section className="case-workspace" aria-labelledby="case-workspace-title">
@@ -105,7 +106,7 @@ export function CaseWorkspace({ user }: Props) {
 
             <div className="action-grid">
               <button
-                disabled={busy}
+                disabled={busy || isCompleted}
                 onClick={() =>
                   void mutate(`/api/v1/cases/${selected.id}/claim`, {
                     expected_version: selected.version,
@@ -116,7 +117,7 @@ export function CaseWorkspace({ user }: Props) {
                 Vorgang übernehmen
               </button>
               <button
-                disabled={busy}
+                disabled={busy || isCompleted}
                 onClick={() =>
                   void mutate(`/api/v1/cases/${selected.id}/claim/renew`, {
                     expected_version: selected.version,
@@ -152,7 +153,7 @@ export function CaseWorkspace({ user }: Props) {
             </div>
             <div className="action-grid">
               <button
-                disabled={busy}
+                disabled={busy || isCompleted}
                 onClick={() =>
                   void mutate(`/api/v1/cases/${selected.id}/update`, {
                     expected_version: selected.version,
@@ -165,7 +166,7 @@ export function CaseWorkspace({ user }: Props) {
                 Klassifizierung speichern
               </button>
               <button
-                disabled={busy}
+                disabled={busy || isCompleted}
                 onClick={() =>
                   void mutate(`/api/v1/cases/${selected.id}/update`, {
                     expected_version: selected.version,
@@ -179,7 +180,7 @@ export function CaseWorkspace({ user }: Props) {
                 Wiedervorlage jetzt
               </button>
               <button
-                disabled={busy}
+                disabled={busy || isCompleted}
                 onClick={() =>
                   void mutate(`/api/v1/cases/${selected.id}/update`, {
                     expected_version: selected.version,
@@ -210,7 +211,7 @@ export function CaseWorkspace({ user }: Props) {
               <h4>Prüfliste</h4>
               {selected.checklist.length === 0 ? (
                 <button
-                  disabled={busy}
+                  disabled={busy || isCompleted}
                   onClick={() =>
                     void mutate(`/api/v1/cases/${selected.id}/checklist`, {
                       expected_version: selected.version,
@@ -224,7 +225,7 @@ export function CaseWorkspace({ user }: Props) {
               ) : (
                 selected.checklist.map((item) => (
                   <button
-                    disabled={busy}
+                    disabled={busy || isCompleted}
                     key={item.id}
                     onClick={() =>
                       void mutate(`/api/v1/cases/${selected.id}/checklist/${item.id}`, {
@@ -248,7 +249,7 @@ export function CaseWorkspace({ user }: Props) {
                 value={note}
               />
               <button
-                disabled={busy || !note.trim()}
+                disabled={busy || isCompleted || !note.trim()}
                 onClick={() => {
                   void mutate(`/api/v1/cases/${selected.id}/notes`, {
                     expected_version: selected.version,
@@ -276,7 +277,7 @@ export function CaseWorkspace({ user }: Props) {
                 value={evidence}
               />
               <button
-                disabled={busy || !evidence.trim()}
+                disabled={busy || isCompleted || !evidence.trim()}
                 onClick={() => {
                   void mutate(`/api/v1/cases/${selected.id}/evidence`, {
                     expected_version: selected.version,
@@ -299,7 +300,7 @@ export function CaseWorkspace({ user }: Props) {
             <section className="detail-block">
               <h4>Freigabe</h4>
               <button
-                disabled={busy}
+                disabled={busy || isCompleted}
                 onClick={() =>
                   void mutate(`/api/v1/cases/${selected.id}/approval-requests`, {
                     expected_version: selected.version,
@@ -312,7 +313,7 @@ export function CaseWorkspace({ user }: Props) {
               {pendingApproval ? (
                 <>
                   <button
-                    disabled={busy}
+                    disabled={busy || isCompleted}
                     onClick={() =>
                       void mutate(`/api/v1/cases/approvals/${pendingApproval.id}/claim`)
                     }
@@ -321,7 +322,7 @@ export function CaseWorkspace({ user }: Props) {
                     Freigabe übernehmen
                   </button>
                   <button
-                    disabled={busy}
+                    disabled={busy || isCompleted}
                     onClick={() =>
                       void mutate(`/api/v1/cases/approvals/${pendingApproval.id}/resolve`, {
                         approved: true,
@@ -337,7 +338,7 @@ export function CaseWorkspace({ user }: Props) {
                     value={rejectionReason}
                   />
                   <button
-                    disabled={busy || !rejectionReason.trim()}
+                    disabled={busy || isCompleted || !rejectionReason.trim()}
                     onClick={() =>
                       void mutate(`/api/v1/cases/approvals/${pendingApproval.id}/resolve`, {
                         approved: false,
@@ -351,7 +352,7 @@ export function CaseWorkspace({ user }: Props) {
                 </>
               ) : null}
               <button
-                disabled={busy}
+                disabled={busy || isCompleted}
                 onClick={() =>
                   void mutate(`/api/v1/cases/${selected.id}/close`, {
                     expected_version: selected.version,
@@ -362,6 +363,13 @@ export function CaseWorkspace({ user }: Props) {
               >
                 Intern abschließen
               </button>
+              {selected.approvals.map((approval) => (
+                <p key={approval.id}>
+                  Rev. {approval.revision} · {approval.status}
+                  {approval.invalidated_at ? " · INVALIDIERT" : ""}
+                  {approval.reason ? ` · ${approval.reason}` : ""}
+                </p>
+              ))}
             </section>
 
             <section className="detail-block">

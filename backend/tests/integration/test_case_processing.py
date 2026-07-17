@@ -230,6 +230,12 @@ async def test_complete_revision_bound_four_eyes_workflow(
         )
         assert closed.status_code == 200
         assert closed.json()["business_status"] == CaseStatus.COMPLETED.value
+        completed_claim = await backoffice_client.post(
+            f"/api/v1/cases/{job.id}/claim",
+            json={"expected_version": 9},
+            headers=headers,
+        )
+        assert completed_claim.status_code == 409
 
     assert await integration_session.scalar(select(func.count(CaseRevision.id))) == 8
     assert await integration_session.scalar(select(func.count(ApprovalRequest.id))) == 3
@@ -241,6 +247,7 @@ async def test_complete_revision_bound_four_eyes_workflow(
         "EVIDENCE_ADDED",
         "APPROVAL_REJECTED",
         "APPROVAL_GRANTED",
+        "APPROVAL_INVALIDATED",
         "CASE_COMPLETED",
     }.issubset(event_types)
     stored_note = await integration_session.scalar(select(InternalNote))

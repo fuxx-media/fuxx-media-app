@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useState } from "react";
 import { fetchCurrentUser, login, logout, readCsrfCookie } from "@/lib/api";
 import type { AuthenticatedUser } from "@/types/system";
 import { CaseWorkspace } from "@/components/CaseWorkspace";
+import { ProviderWorkspace } from "@/components/ProviderWorkspace";
 
 export function AuthPanel() {
   const [user, setUser] = useState<AuthenticatedUser | null>(null);
@@ -106,6 +107,7 @@ export function AuthPanel() {
           </form>
         )}
       </section>
+      {user ? <ProviderWorkspace user={user} /> : null}
       {user ? <CaseWorkspace user={user} /> : null}
     </>
   );

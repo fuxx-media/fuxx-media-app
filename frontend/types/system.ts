@@ -95,3 +95,108 @@ export type CaseDetail = CaseSummary & {
     created_at: string;
   }>;
 };
+
+export type ProviderCapability = {
+  id: string;
+  name: string;
+  operation: string;
+  required_fields: string[];
+  enabled: boolean;
+};
+
+export type ProviderConfiguration = {
+  id: string;
+  name: string;
+  provider_type: string;
+  enabled: boolean;
+  settings: Record<string, unknown>;
+  dry_run_enabled: boolean;
+  production_enabled: boolean;
+  callback_enabled: boolean;
+  secret_reference: {
+    id: string;
+    name: string;
+    environment_variable: string;
+    configured: boolean;
+  } | null;
+  signature_profile: {
+    id: string;
+    name: string;
+    algorithm: string;
+    timestamp_tolerance_seconds: number;
+  } | null;
+  capabilities: ProviderCapability[];
+};
+
+export type ProviderFeatureFlags = {
+  global_integration_enabled: boolean;
+  dry_run_enabled: boolean;
+  production_execution_enabled: boolean;
+  callback_intake_enabled: boolean;
+};
+
+export type ProviderListResponse = {
+  items: ProviderConfiguration[];
+  feature_flags: ProviderFeatureFlags;
+  productive_execution_visible: boolean;
+};
+
+export type ExecutionSummary = {
+  id: string;
+  job_id: string;
+  job_revision: number;
+  provider_configuration_id: string;
+  capability_id: string;
+  operation: string;
+  correlation_id: string;
+  status: string;
+  dry_run: boolean;
+  external_effect: boolean;
+  prepared_payload: Record<string, unknown>;
+  max_attempts: number;
+  discard_reason: string | null;
+  created_at: string;
+  completed_at: string | null;
+};
+
+export type ExecutionDetail = ExecutionSummary & {
+  outbox: Array<{
+    id: string;
+    sequence: number;
+    status: string;
+    attempts: number;
+    last_error: string | null;
+  }>;
+  attempts: Array<{
+    id: string;
+    attempt_number: number;
+    status: string;
+    error_classification: string | null;
+    error_message: string | null;
+    response_payload: Record<string, unknown> | null;
+  }>;
+  responses: Array<{
+    provider_status: string;
+    normalized_status: string;
+    payload: Record<string, unknown>;
+  }>;
+  retry_plans: Array<{
+    attempt_number: number;
+    backoff_seconds: number;
+    classification: string;
+    status: string;
+  }>;
+  artifacts: Array<{ kind: string; sha256: string; metadata: Record<string, unknown> }>;
+  dry_run_result: {
+    valid: boolean;
+    masked_payload: Record<string, unknown>;
+    validation_errors: string[];
+    external_effect: boolean;
+  } | null;
+  audit_events: Array<{
+    id: string;
+    event_type: string;
+    payload: Record<string, unknown>;
+    created_at: string;
+  }>;
+};

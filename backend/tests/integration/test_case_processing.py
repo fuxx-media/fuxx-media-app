@@ -330,3 +330,46 @@ async def test_claim_conflict_expiry_optimistic_locking_role_and_tenant_lists(
         assert urgent.status_code == 200
         assert urgent.json()["total"] == 1
         assert urgent.json()["items"][0]["tenant_id"] == str(tenant.id)
+
+
+async def test_case_update_preserves_omitted_due_date(
+    integration_session: AsyncSession, tenant: Tenant
+) -> None:
+    backoffice = await create_user(
+        integration_session, tenant, RoleName.ADMIN, RoleName.BACKOFFICE
+    )
+    job = await create_job(integration_session, tenant)
+    await integration_session.commit()
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        csrf = await login(client, tenant, backoffice)
+        headers = write_headers(csrf)
+        claimed = await client.post(
+            f"/api/v1/cases/{job.id}/claim", json={"expected_version": 1}, headers=headers
+        )
+        assert claimed.status_code == 200
+
+        due_at = datetime.now(UTC) + timedelta(days=1)
+        scheduled = await client.post(
+            f"/api/v1/cases/{job.id}/update",
+            json={"expected_version": 1, "due_at": due_at.isoformat()},
+            headers=headers,
+        )
+        assert scheduled.status_code == 200
+
+        classified = await client.post(
+            f"/api/v1/cases/{job.id}/update",
+            json={"expected_version": 2, "category": "invoice-check"},
+            headers=headers,
+        )
+        assert classified.status_code == 200
+        assert classified.json()["due_at"] is not None
+
+        cleared = await client.post(
+            f"/api/v1/cases/{job.id}/update",
+            json={"expected_version": 3, "due_at": None},
+            headers=headers,
+        )
+        assert cleared.status_code == 200
+        assert cleared.json()["due_at"] is None

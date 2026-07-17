@@ -319,6 +319,7 @@ async def update_case(
         priority=body.priority,
         assigned_to=body.assigned_to,
         due_at=body.due_at,
+        due_at_supplied="due_at" in body.model_fields_set,
     )
     return _job_dict(job)
 

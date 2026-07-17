@@ -16,7 +16,7 @@ controlled completion and durable queue continuation without external effect.
 ## Acceptance evidence
 
 The complete suite migrates an empty PostgreSQL database to `a4f1c2d3e4f5`, repeats the migration,
-and passes 73 backend tests. Ruff, Mypy strict, frontend lint/typecheck/production build,
+and passes 74 backend tests. Ruff, Mypy strict, frontend lint/typecheck/production build,
 architecture guard, package build, npm audit, Compose health and browser workflow are required
 before the Phase 2 PR is marked ready.
 

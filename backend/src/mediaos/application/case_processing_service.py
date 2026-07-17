@@ -176,6 +176,7 @@ class CaseProcessingService:
         priority: CasePriority | None,
         assigned_to: UUID | None,
         due_at: datetime | None,
+        due_at_supplied: bool,
     ) -> ContentJob:
         async with self.session.begin():
             job = await self._locked_job(actor, job_id)
@@ -190,7 +191,8 @@ class CaseProcessingService:
                 job.category = category.strip()
             if priority is not None:
                 job.priority = priority
-            job.due_at = due_at
+            if due_at_supplied:
+                job.due_at = due_at
             await self._material_change(job, actor, "CASE_UPDATED")
         await self.session.refresh(job)
         return job

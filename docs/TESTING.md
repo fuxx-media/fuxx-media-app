@@ -22,3 +22,12 @@ Phase 2 additionally covers paginated and filtered worklists, cross-tenant hidin
 claim conflict/expiry/takeover, optimistic locking, immutable notes, checklist prerequisites,
 self-approval and role rejection, revision-bound approval/rejection, approval invalidation,
 evidence, worker restart recovery and persistent terminal queue failure.
+
+Phase 3 additionally tests the complete adapter contract, configuration validation, reference-only
+secrets and masking, dry-run persistence/no effect/revision binding, business and technical gates,
+required fields, atomic outbox creation, parallel idempotency and `SKIP LOCKED` claims, temporary and
+permanent errors, timeout/rate-limit classification, retry limits/backoff, ambiguous status,
+worker-restart recovery, dead letter, reasoned resume/discard, revision invalidation, callback HMAC,
+expired timestamps, unknown correlation IDs, replay/double delivery, tenant/role boundaries and
+provider audit completeness. Callback tests use an isolated process-only test secret and leave the
+runtime callback feature disabled.

@@ -24,7 +24,20 @@ User credentials, session secrets, tenant business processes, uploaded files, au
   timestamp before a new request can be created.
 - Internal-content injection: lengths are bounded and React renders notes/evidence as text; no
   stored HTML or automatic external URL fetching exists.
+- Direct external side effects: domain/case services have no adapter dependency; only an immutable
+  order and transactional outbox can reach the provider worker.
+- Provider replay/double effect: tenant/provider/operation/case/revision fingerprints, caller keys,
+  row locking and persisted responses collapse identical requests.
+- Provider ambiguity: unknown status remains `AMBIGUOUS`, never success, and requires a signed
+  callback or reasoned admin intervention.
+- Callback forgery/replay: HMAC-SHA256, timestamp tolerance, event ID uniqueness, correlation and
+  tenant/provider matching precede every status change.
+- Secret disclosure: configuration stores an environment-variable reference only; recursive masking
+  covers prepared payloads, normalized responses, callbacks and API output.
 
 ## Residual risks
 
 Local MinIO uses an administrative credential shared by backend and worker. A later production deployment should provision a least-privilege application service account. Session cookies require `MEDIAOS_COOKIE_SECURE=true` behind production HTTPS. Rate limiting and account lockout are not part of the local Phase 1 foundation and must be added before public internet exposure.
+The in-memory simulation adapter status cache is diagnostic only; PostgreSQL remains authoritative.
+Before any real provider is added, provider-specific egress allowlists, credential rotation and
+external contract certification remain mandatory.

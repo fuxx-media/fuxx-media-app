@@ -54,3 +54,22 @@ Claims serialize human editing. Approval requests bind to one exact revision, ma
 by a human Admin or Reviewer, and reject the requester or last material editor as reviewer. Notes
 and case revisions are immutable in both ORM and PostgreSQL. Phase 2 creates internal queue events
 only; no provider, mail, publishing or external URL path is called.
+
+## Phase 3 provider boundary
+
+No fachlicher service calls a provider adapter. The only permitted path is business decision,
+revision-bound business approval, technical approval, immutable `ExecutionOrder` and
+`ExecutionRevision`, atomic `OutboxEvent`, `SKIP LOCKED` worker claim, `ProviderAdapter`, normalized
+response/result artifact, audit, and classified retry or dead letter.
+
+Business approval, technical approval, execution status, outbox status, worker attempt, provider
+status, retry state and externally confirmed result are independent. A later material case revision
+invalidates technical approvals and queued/not-started executions; already started attempts retain
+their immutable payload. The local `SimulationProvider` implements the same adapter contract as any
+future provider (`validate_configuration`, `validate_request`, `prepare`, `execute`, `query_status`,
+`cancel`, `normalize_response`, `classify_error`, `healthcheck`) but always records
+`external_effect=false`.
+
+Provider configuration persists references to environment secrets, never secret values. Callback
+foundations use HMAC-SHA256, bounded timestamps, event replay protection and correlation IDs. Both
+productive execution and callback intake are disabled by default and in the Phase-3 acceptance state.

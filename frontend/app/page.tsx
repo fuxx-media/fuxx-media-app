@@ -9,7 +9,7 @@ export default function Home() {
           <p className="eyebrow">MediaOS</p>
           <h1 id="page-title">Interne Vorgangsbearbeitung</h1>
         </div>
-        <span className="phase-badge">External providers disabled</span>
+        <span className="phase-badge">Echte Provider und produktive Ausführung deaktiviert</span>
       </section>
 
       <SystemStatus />

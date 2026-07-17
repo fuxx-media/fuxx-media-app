@@ -74,3 +74,23 @@ class ApprovalConflictError(ApplicationError):
 
 class ChecklistIncompleteError(ApplicationError):
     code = "CHECKLIST_INCOMPLETE"
+
+
+class ProviderValidationError(ApplicationError):
+    code = "PROVIDER_VALIDATION_FAILED"
+
+
+class ProviderNotFoundError(ApplicationError):
+    code = "PROVIDER_NOT_FOUND"
+
+
+class ExecutionNotFoundError(ApplicationError):
+    code = "EXECUTION_NOT_FOUND"
+
+
+class CallbackValidationError(ApplicationError):
+    code = "CALLBACK_VALIDATION_FAILED"
+
+
+class CallbackReplayError(ApplicationError):
+    code = "CALLBACK_REPLAY"

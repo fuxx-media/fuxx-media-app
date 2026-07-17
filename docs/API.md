@@ -58,3 +58,22 @@ No endpoint accepts `X-Actor-Id` or `X-Actor-Type`.
 `GET /cases` accepts `page`, `page_size` (maximum 100), queue views (`open`, `mine`,
 `unassigned`, `due`, `approval`, `rejected`, `completed`) and category, priority, status,
 assignee and search filters. All tenant identity comes from the server session.
+
+## Provider foundation
+
+| Method | Path | Protection |
+|---|---|---|
+| GET | `/providers` | Authenticated tenant; masked references only |
+| POST | `/providers/simulation` | Admin, CSRF; no secret value accepted |
+| POST | `/providers/{id}/technical-approvals` | Admin, CSRF, current approved revision |
+| POST | `/providers/{id}/dry-runs` | Admin/Backoffice, CSRF, `Idempotency-Key` |
+| POST | `/providers/{id}/executions` | Admin/Backoffice, CSRF, approvals, `Idempotency-Key` |
+| GET | `/executions` | Authenticated tenant |
+| GET | `/executions/{id}` | Authenticated tenant, attempts/outbox/results/audit |
+| POST | `/executions/{id}/resume` | Admin, CSRF, mandatory reason |
+| POST | `/executions/{id}/discard` | Admin, CSRF, mandatory reason |
+| POST | `/provider-callbacks/{provider}` | Feature gate plus HMAC/timestamp/replay/correlation checks |
+
+Dry-runs persist the same masked preparation payload without creating an outbox or external effect.
+Simulation executions create the order and outbox atomically and are the only enabled adapter path.
+API responses expose secret-reference metadata but never resolved secret values.

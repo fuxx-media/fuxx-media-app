@@ -11,6 +11,10 @@ Migration `32df0ee0c2a1` extends the Phase 0 kernel without replacing it.
 
 `Channel`, `ContentJob`, and `AuditEvent` now carry tenant IDs. The migration creates a fixed legacy tenant and safely backfills existing Phase 0 records before adding non-null constraints.
 
+Provider configuration names are unique within a tenant. Global configurations use a separate
+partial unique index, so two tenants may use the same human-readable provider name without sharing
+configuration or credentials.
+
 ## Intake persistence
 
 - `IdempotencyRecord`: unique tenant/scope/key, request digest and completed response.
@@ -38,3 +42,17 @@ wiedervorlage, last material actor and completion reason to `ContentJob`.
 Changing classification, checklist, note, evidence, priority, assignment or due date increments the
 revision and invalidates all prior active approvals. Approval decisions do not rewrite historical
 requests. Queue success, retry and terminal failure remain durable PostgreSQL states.
+
+## Phase 3 provider and execution model
+
+Migration `b5e6f7a8c9d0` adds tenant provider flags, secret references, signature profiles,
+provider capabilities and simulation scenarios. `TechnicalApproval` binds one provider capability
+to the exact case revision and business approval gate.
+
+`ExecutionOrder` stores the immutable prepared request identity, idempotency fingerprint,
+correlation ID, business/technical approvals, dry-run marker and strictly separated execution
+status. `ExecutionRevision` and `DryRunResult` are immutable. `OutboxEvent` is created in the same
+PostgreSQL transaction as a non-dry execution order. `ExecutionAttempt`, `ProviderResponse`,
+`RetryPlan`, `ResultArtifact` and `CallbackReceipt` retain each worker/provider outcome, classified
+error, backoff, normalized response, SHA-256 artifact and signed callback receipt. Unique constraints
+protect idempotency per tenant/provider/operation/case/revision and callback replay per provider/event.

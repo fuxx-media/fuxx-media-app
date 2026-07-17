@@ -2,12 +2,23 @@
 
 ## Scope and interpretation
 
-This plan covers the full technical foundation described for Phase 0. Work packages 0.1 through 0.5 are implemented and verified. The richer internal frontend and real/fake provider execution remain outside the completed kernel scope.
+This plan covers the verified Phase 0 kernel and the completed Phase 1 persistent intake boundary. Provider execution remains outside the current scope.
 
 No technical contradiction blocks Phase 0.1. Two specification details are resolved conservatively:
 
 1. The repository tree is illustrative where later sections explicitly require additional files.
-2. GitHub CODEOWNERS identities cannot be inferred from local data; the file is created without a fabricated account and must receive a real GitHub user or team before branch protection is enabled.
+2. GitHub ownership is bound to the verified `fuxx-media` account and enforced by branch protection.
+
+## Phase 1 – persistent authenticated intake (completed)
+
+- Persistent tenants, users, roles and revocable server-side sessions.
+- Argon2id password hashes, HttpOnly session cookies and bound CSRF tokens.
+- Server-derived actor identity and tenant-scoped authorization for all protected APIs.
+- Durable idempotency with parallel-request serialization.
+- Content-verified, size-limited private MinIO uploads with SHA-256 deduplication.
+- Atomic job, audit and queue creation with object-storage compensation.
+- Authenticated audited downloads and bounded queue failure handling.
+- Empty-database and repeated Alembic migration proof, security and browser tests.
 
 ## Work package 0.1 – repository and infrastructure
 

@@ -1,24 +1,25 @@
 # Data model
 
-## Phase 0 status
+Migration `32df0ee0c2a1` extends the Phase 0 kernel without replacing it.
 
-Migration `086e30120b92` implements the complete Phase 0 relational kernel in PostgreSQL.
+## Identity and tenancy
 
-## Implemented entities
+- `Tenant`: tenant identity and active state.
+- `User`: tenant-bound normalized email, Argon2id hash, active state.
+- `UserRole`: many-to-many role assignment.
+- `AuthSession`: hashed session and CSRF secrets, expiry, last activity and revocation.
 
-- `Channel`
-- `ContentJob`
-- `WorkflowTransition`
-- `AuditEvent`
-- `ProviderConfiguration`
-- `ProviderCall`
-- `CostEntry`
-- `ApprovalRequest`
-- `JobTask`
-- `Artifact`
+`Channel`, `ContentJob`, and `AuditEvent` now carry tenant IDs. The migration creates a fixed legacy tenant and safely backfills existing Phase 0 records before adding non-null constraints.
 
-All entities use UUID primary keys and UTC timestamps. Monetary fields are database integers constrained to non-negative cent values. Workflow, approval, provider-call, artifact, and task states are typed enums. `ContentJob.version` starts at one and is checked under a row lock for optimistic concurrency control.
+## Intake persistence
 
-Foreign keys use explicit deletion behavior. Queue claiming is indexed by status, availability, and creation time. Audit events are append-only in both SQLAlchemy and PostgreSQL through an update/delete rejection trigger.
+- `IdempotencyRecord`: unique tenant/scope/key, request digest and completed response.
+- `StoredFile`: tenant-scoped SHA-256 identity, verified MIME, byte size and private MinIO key.
+- `JobAttachment`: job-to-file reference and display-only original filename.
+- `ContentJob`: the created business process in initial `DRAFT` state.
+- `JobTask`: bounded `INTAKE_ACCEPTED` queue work.
+- `AuditEvent`: append-only intake, session and download evidence.
 
-PostgreSQL is the sole system of record. MinIO stores artifact bytes; PostgreSQL stores artifact identity, ownership, metadata, checksums, and lifecycle state.
+Unique constraints prevent duplicate tenant/email, tenant/channel slug, tenant/file hash, object key and job/file attachment. Money remains integer cents and all timestamps are timezone-aware UTC.
+
+Audit mutation remains blocked both by SQLAlchemy listeners and a PostgreSQL update/delete trigger.

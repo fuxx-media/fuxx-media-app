@@ -26,7 +26,10 @@ from mediaos.domain.enums import (
     CasePriority,
     CaseStatus,
     EvidenceVerificationStatus,
+    ExecutionStatus,
+    OutboxStatus,
     RoleName,
+    TechnicalApprovalStatus,
 )
 from mediaos.domain.models import (
     ApprovalRequest,
@@ -35,10 +38,13 @@ from mediaos.domain.models import (
     CaseRevision,
     ChecklistItem,
     ContentJob,
+    ExecutionOrder,
     InternalNote,
     JobAttachment,
     JobTask,
+    OutboxEvent,
     StoredFile,
+    TechnicalApproval,
     User,
 )
 
@@ -463,6 +469,49 @@ class CaseProcessingService:
             .values(invalidated_at=datetime.now(UTC))
         )
         invalidated_count = int(getattr(invalidated, "rowcount", 0) or 0)
+        technical = await self.session.execute(
+            update(TechnicalApproval)
+            .where(
+                TechnicalApproval.job_id == job.id,
+                TechnicalApproval.job_revision < job.version,
+                TechnicalApproval.invalidated_at.is_(None),
+            )
+            .values(
+                status=TechnicalApprovalStatus.INVALIDATED,
+                invalidated_at=datetime.now(UTC),
+            )
+        )
+        pending_execution_ids = list(
+            (
+                await self.session.scalars(
+                    select(ExecutionOrder.id).where(
+                        ExecutionOrder.job_id == job.id,
+                        ExecutionOrder.job_revision < job.version,
+                        ExecutionOrder.status.in_(
+                            [ExecutionStatus.VALIDATED, ExecutionStatus.QUEUED]
+                        ),
+                    )
+                )
+            ).all()
+        )
+        if pending_execution_ids:
+            await self.session.execute(
+                update(ExecutionOrder)
+                .where(ExecutionOrder.id.in_(pending_execution_ids))
+                .values(
+                    status=ExecutionStatus.INVALIDATED,
+                    invalidated_at=datetime.now(UTC),
+                )
+            )
+            await self.session.execute(
+                update(OutboxEvent)
+                .where(
+                    OutboxEvent.execution_order_id.in_(pending_execution_ids),
+                    OutboxEvent.status.in_([OutboxStatus.PENDING, OutboxStatus.RETRY]),
+                )
+                .values(status=OutboxStatus.INVALIDATED)
+            )
+        technical_count = int(getattr(technical, "rowcount", 0) or 0)
         self.session.add(
             CaseRevision(
                 job_id=job.id,
@@ -478,6 +527,17 @@ class CaseProcessingService:
                 actor,
                 "APPROVAL_INVALIDATED",
                 {"new_revision": job.version, "invalidated_requests": invalidated_count},
+            )
+        if technical_count or pending_execution_ids:
+            self._audit(
+                job,
+                actor,
+                "PROVIDER_EXECUTION_GATE_INVALIDATED",
+                {
+                    "new_revision": job.version,
+                    "technical_approvals": technical_count,
+                    "pending_executions": len(pending_execution_ids),
+                },
             )
 
     async def _locked_job(self, actor: Actor, job_id: UUID) -> ContentJob:

@@ -14,6 +14,7 @@ from mediaos import APP_NAME, APP_VERSION
 from mediaos.api.auth_routes import router as auth_router
 from mediaos.api.health import router as health_router
 from mediaos.api.phase_one import router as phase_one_router
+from mediaos.api.phase_three import router as phase_three_router
 from mediaos.api.phase_two import router as phase_two_router
 from mediaos.api.phase_zero import router as phase_zero_router
 from mediaos.application.errors import ApplicationError
@@ -48,6 +49,7 @@ app.include_router(auth_router)
 app.include_router(phase_zero_router)
 app.include_router(phase_one_router)
 app.include_router(phase_two_router)
+app.include_router(phase_three_router)
 
 
 @app.exception_handler(ApplicationError)
@@ -62,6 +64,11 @@ async def application_error_handler(_: Request, exc: ApplicationError) -> JSONRe
         "STORED_FILE_NOT_FOUND": 404,
         "UPLOAD_VALIDATION_FAILED": 422,
         "CHECKLIST_INCOMPLETE": 422,
+        "PROVIDER_VALIDATION_FAILED": 422,
+        "CALLBACK_VALIDATION_FAILED": 422,
+        "PROVIDER_NOT_FOUND": 404,
+        "EXECUTION_NOT_FOUND": 404,
+        "CALLBACK_REPLAY": 409,
     }.get(exc.code, 409)
     return JSONResponse(
         status_code=status_code,

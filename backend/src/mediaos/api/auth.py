@@ -78,3 +78,11 @@ async def require_approval_actor(
     if context.actor.roles.isdisjoint({RoleName.ADMIN, RoleName.REVIEWER}):
         raise AuthorizationError("Admin or Reviewer role is required")
     return context.actor
+
+
+async def require_admin_actor(
+    context: Annotated[SessionContext, Depends(require_csrf_context)],
+) -> Actor:
+    if RoleName.ADMIN not in context.actor.roles:
+        raise AuthorizationError("Admin role is required")
+    return context.actor

@@ -12,6 +12,7 @@ from mediaos.domain.enums import ActorType
 from mediaos.domain.models import AuditEvent, ContentJob
 from mediaos.infrastructure.queue_repository import QueueRepository
 from mediaos.logging import configure_logging
+from mediaos.worker.provider_execution import process_one_provider_execution
 
 LOGGER = logging.getLogger(__name__)
 HEARTBEAT_PATH = Path("/tmp/mediaos-worker-ready")
@@ -86,6 +87,7 @@ async def run() -> None:
             if await database_ready():
                 HEARTBEAT_PATH.touch()
                 await process_one_task()
+                await process_one_provider_execution()
             else:
                 HEARTBEAT_PATH.unlink(missing_ok=True)
                 LOGGER.error("worker database heartbeat failed")

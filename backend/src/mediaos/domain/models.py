@@ -29,12 +29,20 @@ from mediaos.domain.enums import (
     ActorType,
     ApprovalStatus,
     ArtifactKind,
+    CallbackStatus,
     CasePriority,
     CaseStatus,
     EvidenceVerificationStatus,
+    ExecutionAttemptStatus,
+    ExecutionStatus,
+    OutboxStatus,
     ProviderCallStatus,
+    ProviderErrorClassification,
+    RetryPlanStatus,
     RoleName,
+    SimulationScenario,
     TaskStatus,
+    TechnicalApprovalStatus,
     WorkflowState,
 )
 
@@ -258,11 +266,29 @@ class ProviderConfiguration(IdentityMixin, TimestampMixin, Base):
     __table_args__ = (UniqueConstraint("name", name="uq_provider_configurations_name"),)
 
     name: Mapped[str] = mapped_column(String(100), nullable=False)
+    tenant_id: Mapped[UUID | None] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), index=True
+    )
     provider_type: Mapped[str] = mapped_column(String(100), nullable=False)
     enabled: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=False, server_default="false"
     )
     settings: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
+    secret_reference_id: Mapped[UUID | None] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("secret_references.id", ondelete="RESTRICT")
+    )
+    signature_profile_id: Mapped[UUID | None] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("signature_profiles.id", ondelete="RESTRICT")
+    )
+    dry_run_enabled: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=True, server_default="true"
+    )
+    production_enabled: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="false"
+    )
+    callback_enabled: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="false"
+    )
 
 
 class ProviderCall(IdentityMixin, Base):
@@ -292,6 +318,430 @@ class ProviderCall(IdentityMixin, Base):
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class ProviderFeatureFlags(IdentityMixin, TimestampMixin, Base):
+    __tablename__ = "provider_feature_flags"
+    __table_args__ = (UniqueConstraint("tenant_id", name="uq_provider_flags_tenant"),)
+
+    tenant_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False
+    )
+    global_integration_enabled: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=True, server_default="true"
+    )
+    dry_run_enabled: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=True, server_default="true"
+    )
+    production_execution_enabled: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="false"
+    )
+    callback_intake_enabled: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="false"
+    )
+
+
+class SecretReference(IdentityMixin, TimestampMixin, Base):
+    __tablename__ = "secret_references"
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "name", name="uq_secret_reference_tenant_name"),
+    )
+
+    tenant_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False
+    )
+    name: Mapped[str] = mapped_column(String(100), nullable=False)
+    environment_variable: Mapped[str] = mapped_column(String(200), nullable=False)
+    purpose: Mapped[str] = mapped_column(String(300), nullable=False)
+    active: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=True, server_default="true"
+    )
+
+
+class SignatureProfile(IdentityMixin, TimestampMixin, Base):
+    __tablename__ = "signature_profiles"
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "name", name="uq_signature_profile_tenant_name"),
+    )
+
+    tenant_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False
+    )
+    name: Mapped[str] = mapped_column(String(100), nullable=False)
+    secret_reference_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("secret_references.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    algorithm: Mapped[str] = mapped_column(
+        String(50), nullable=False, default="HMAC-SHA256", server_default="HMAC-SHA256"
+    )
+    timestamp_tolerance_seconds: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=300, server_default="300"
+    )
+
+
+class ProviderCapability(IdentityMixin, TimestampMixin, Base):
+    __tablename__ = "provider_capabilities"
+    __table_args__ = (
+        UniqueConstraint(
+            "provider_configuration_id", "operation", name="uq_provider_capability_operation"
+        ),
+    )
+
+    provider_configuration_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("provider_configurations.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    name: Mapped[str] = mapped_column(String(150), nullable=False)
+    operation: Mapped[str] = mapped_column(String(100), nullable=False)
+    required_fields: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
+    enabled: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=True, server_default="true"
+    )
+
+
+class TechnicalApproval(IdentityMixin, Base):
+    __tablename__ = "technical_approvals"
+    __table_args__ = (
+        Index("ix_technical_approval_job_revision", "job_id", "job_revision", "status"),
+    )
+
+    tenant_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False
+    )
+    job_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("content_jobs.id", ondelete="CASCADE"), nullable=False
+    )
+    job_revision: Mapped[int] = mapped_column(Integer, nullable=False)
+    provider_configuration_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("provider_configurations.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    capability_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("provider_capabilities.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    approved_by: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
+    status: Mapped[TechnicalApprovalStatus] = mapped_column(
+        Enum(TechnicalApprovalStatus, name="technical_approval_status", native_enum=False),
+        nullable=False,
+        default=TechnicalApprovalStatus.APPROVED,
+        server_default=TechnicalApprovalStatus.APPROVED.value,
+    )
+    reason: Mapped[str] = mapped_column(Text, nullable=False)
+    invalidated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+
+class ExecutionOrder(IdentityMixin, TimestampMixin, Base):
+    __tablename__ = "execution_orders"
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "idempotency_key", name="uq_execution_tenant_key"),
+        UniqueConstraint(
+            "tenant_id",
+            "provider_configuration_id",
+            "operation",
+            "job_id",
+            "job_revision",
+            "request_fingerprint",
+            "dry_run",
+            name="uq_execution_effect",
+        ),
+        UniqueConstraint("correlation_id", name="uq_execution_correlation"),
+        CheckConstraint("max_attempts > 0", name="ck_execution_max_attempts"),
+        Index("ix_execution_status_created", "status", "created_at"),
+    )
+
+    tenant_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False
+    )
+    job_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("content_jobs.id", ondelete="CASCADE"), nullable=False
+    )
+    job_revision: Mapped[int] = mapped_column(Integer, nullable=False)
+    provider_configuration_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("provider_configurations.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    capability_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("provider_capabilities.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    operation: Mapped[str] = mapped_column(String(100), nullable=False)
+    business_approval_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("approval_requests.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    technical_approval_id: Mapped[UUID | None] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("technical_approvals.id", ondelete="RESTRICT")
+    )
+    created_by: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
+    idempotency_key: Mapped[str] = mapped_column(String(200), nullable=False)
+    correlation_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True), default=uuid4, nullable=False
+    )
+    request_fingerprint: Mapped[str] = mapped_column(String(64), nullable=False)
+    request_payload: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    prepared_payload: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    dry_run: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    external_effect: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="false"
+    )
+    status: Mapped[ExecutionStatus] = mapped_column(
+        Enum(ExecutionStatus, name="execution_status", native_enum=False),
+        nullable=False,
+        default=ExecutionStatus.VALIDATED,
+        server_default=ExecutionStatus.VALIDATED.value,
+    )
+    max_attempts: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=3, server_default="3"
+    )
+    next_attempt_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    invalidated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    discard_reason: Mapped[str | None] = mapped_column(Text)
+
+
+class ExecutionRevision(IdentityMixin, Base):
+    __tablename__ = "execution_revisions"
+    __table_args__ = (
+        UniqueConstraint("execution_order_id", "revision", name="uq_execution_revision"),
+    )
+
+    execution_order_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("execution_orders.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    revision: Mapped[int] = mapped_column(Integer, nullable=False)
+    snapshot: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+
+class OutboxEvent(IdentityMixin, TimestampMixin, Base):
+    __tablename__ = "outbox_events"
+    __table_args__ = (
+        UniqueConstraint("execution_order_id", "sequence", name="uq_outbox_execution_sequence"),
+        Index("ix_outbox_claim", "status", "available_at", "created_at"),
+    )
+
+    tenant_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False
+    )
+    execution_order_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("execution_orders.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    event_type: Mapped[str] = mapped_column(String(100), nullable=False)
+    sequence: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    payload: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    status: Mapped[OutboxStatus] = mapped_column(
+        Enum(OutboxStatus, name="outbox_status", native_enum=False),
+        nullable=False,
+        default=OutboxStatus.PENDING,
+        server_default=OutboxStatus.PENDING.value,
+    )
+    attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+    max_attempts: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=3, server_default="3"
+    )
+    available_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    locked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    locked_by: Mapped[str | None] = mapped_column(String(200))
+    last_error: Mapped[str | None] = mapped_column(Text)
+
+
+class ExecutionAttempt(IdentityMixin, Base):
+    __tablename__ = "execution_attempts"
+    __table_args__ = (
+        UniqueConstraint(
+            "execution_order_id", "attempt_number", name="uq_execution_attempt_number"
+        ),
+        Index("ix_execution_attempt_order_started", "execution_order_id", "started_at"),
+    )
+
+    execution_order_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("execution_orders.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    outbox_event_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("outbox_events.id", ondelete="RESTRICT"), nullable=False
+    )
+    attempt_number: Mapped[int] = mapped_column(Integer, nullable=False)
+    worker_id: Mapped[str] = mapped_column(String(200), nullable=False)
+    status: Mapped[ExecutionAttemptStatus] = mapped_column(
+        Enum(ExecutionAttemptStatus, name="execution_attempt_status", native_enum=False),
+        nullable=False,
+        default=ExecutionAttemptStatus.RUNNING,
+    )
+    request_payload: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    response_payload: Mapped[dict[str, Any] | None] = mapped_column(JSON)
+    error_message: Mapped[str | None] = mapped_column(Text)
+    error_classification: Mapped[ProviderErrorClassification | None] = mapped_column(
+        Enum(ProviderErrorClassification, name="provider_error_classification", native_enum=False)
+    )
+    started_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class ProviderResponse(IdentityMixin, Base):
+    __tablename__ = "provider_responses"
+
+    execution_order_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("execution_orders.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    execution_attempt_id: Mapped[UUID | None] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("execution_attempts.id", ondelete="SET NULL")
+    )
+    provider_status: Mapped[str] = mapped_column(String(100), nullable=False)
+    normalized_status: Mapped[str] = mapped_column(String(100), nullable=False)
+    payload: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    received_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+
+class RetryPlan(IdentityMixin, Base):
+    __tablename__ = "retry_plans"
+    __table_args__ = (
+        UniqueConstraint("execution_order_id", "attempt_number", name="uq_retry_plan_attempt"),
+    )
+
+    execution_order_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("execution_orders.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    attempt_number: Mapped[int] = mapped_column(Integer, nullable=False)
+    scheduled_for: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    backoff_seconds: Mapped[int] = mapped_column(Integer, nullable=False)
+    classification: Mapped[ProviderErrorClassification] = mapped_column(
+        Enum(ProviderErrorClassification, name="provider_error_classification", native_enum=False),
+        nullable=False,
+    )
+    status: Mapped[RetryPlanStatus] = mapped_column(
+        Enum(RetryPlanStatus, name="retry_plan_status", native_enum=False),
+        nullable=False,
+        default=RetryPlanStatus.SCHEDULED,
+    )
+
+
+class DryRunResult(IdentityMixin, Base):
+    __tablename__ = "dry_run_results"
+    __table_args__ = (
+        UniqueConstraint("execution_order_id", name="uq_dry_run_execution"),
+    )
+
+    execution_order_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("execution_orders.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    valid: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    masked_payload: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    validation_errors: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
+    external_effect: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="false"
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+
+class SimulationScenarioConfiguration(IdentityMixin, TimestampMixin, Base):
+    __tablename__ = "simulation_scenarios"
+    __table_args__ = (
+        UniqueConstraint("provider_configuration_id", "name", name="uq_simulation_scenario_name"),
+    )
+
+    provider_configuration_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("provider_configurations.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    name: Mapped[str] = mapped_column(String(100), nullable=False)
+    scenario: Mapped[SimulationScenario] = mapped_column(
+        Enum(SimulationScenario, name="simulation_scenario", native_enum=False), nullable=False
+    )
+    settings: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
+    active: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=True, server_default="true"
+    )
+
+
+class CallbackReceipt(IdentityMixin, Base):
+    __tablename__ = "callback_receipts"
+    __table_args__ = (
+        UniqueConstraint(
+            "provider_configuration_id", "event_id", name="uq_callback_provider_event"
+        ),
+        Index("ix_callback_correlation", "correlation_id", "created_at"),
+    )
+
+    tenant_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False
+    )
+    provider_configuration_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("provider_configurations.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    event_id: Mapped[str] = mapped_column(String(200), nullable=False)
+    correlation_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
+    provider_timestamp: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    payload_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    raw_payload: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    normalized_response: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    signature_valid: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    status: Mapped[CallbackStatus] = mapped_column(
+        Enum(CallbackStatus, name="callback_status", native_enum=False), nullable=False
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+
+class ResultArtifact(IdentityMixin, Base):
+    __tablename__ = "result_artifacts"
+
+    execution_order_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("execution_orders.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    execution_attempt_id: Mapped[UUID | None] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("execution_attempts.id", ondelete="SET NULL")
+    )
+    kind: Mapped[str] = mapped_column(String(100), nullable=False)
+    sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    metadata_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
+    stored_file_id: Mapped[UUID | None] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("stored_files.id", ondelete="RESTRICT")
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
 
 
 class CostEntry(IdentityMixin, Base):
@@ -552,3 +1002,7 @@ event.listen(InternalNote, "before_update", _reject_audit_mutation)
 event.listen(InternalNote, "before_delete", _reject_audit_mutation)
 event.listen(CaseRevision, "before_update", _reject_audit_mutation)
 event.listen(CaseRevision, "before_delete", _reject_audit_mutation)
+event.listen(ExecutionRevision, "before_update", _reject_audit_mutation)
+event.listen(ExecutionRevision, "before_delete", _reject_audit_mutation)
+event.listen(DryRunResult, "before_update", _reject_audit_mutation)
+event.listen(DryRunResult, "before_delete", _reject_audit_mutation)

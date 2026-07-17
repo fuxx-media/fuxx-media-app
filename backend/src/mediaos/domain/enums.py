@@ -36,6 +36,29 @@ class RoleName(StrEnum):
     SYSTEM_WORKER = "SYSTEM_WORKER"
 
 
+class CasePriority(StrEnum):
+    LOW = "LOW"
+    NORMAL = "NORMAL"
+    HIGH = "HIGH"
+    URGENT = "URGENT"
+
+
+class CaseStatus(StrEnum):
+    OPEN = "OPEN"
+    IN_PROGRESS = "IN_PROGRESS"
+    DEFERRED = "DEFERRED"
+    AWAITING_APPROVAL = "AWAITING_APPROVAL"
+    APPROVED = "APPROVED"
+    REJECTED = "REJECTED"
+    COMPLETED = "COMPLETED"
+
+
+class EvidenceVerificationStatus(StrEnum):
+    UNVERIFIED = "UNVERIFIED"
+    VERIFIED = "VERIFIED"
+    REJECTED = "REJECTED"
+
+
 class ProviderCallStatus(StrEnum):
     PENDING = "PENDING"
     RUNNING = "RUNNING"

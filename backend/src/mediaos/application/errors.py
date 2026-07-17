@@ -62,3 +62,15 @@ class UploadValidationError(ApplicationError):
 
 class StoredFileNotFoundError(ApplicationError):
     code = "STORED_FILE_NOT_FOUND"
+
+
+class ClaimConflictError(ApplicationError):
+    code = "CLAIM_CONFLICT"
+
+
+class ApprovalConflictError(ApplicationError):
+    code = "APPROVAL_CONFLICT"
+
+
+class ChecklistIncompleteError(ApplicationError):
+    code = "CHECKLIST_INCOMPLETE"

@@ -29,6 +29,9 @@ from mediaos.domain.enums import (
     ActorType,
     ApprovalStatus,
     ArtifactKind,
+    CasePriority,
+    CaseStatus,
+    EvidenceVerificationStatus,
     ProviderCallStatus,
     RoleName,
     TaskStatus,
@@ -116,6 +119,8 @@ class AuthSession(IdentityMixin, Base):
     last_seen_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
+
+
 class Channel(IdentityMixin, TimestampMixin, Base):
     __tablename__ = "channels"
     __table_args__ = (UniqueConstraint("tenant_id", "slug", name="uq_channels_tenant_slug"),)
@@ -167,6 +172,31 @@ class ContentJob(IdentityMixin, TimestampMixin, Base):
     spent_cents: Mapped[int] = mapped_column(
         BigInteger, nullable=False, default=0, server_default="0"
     )
+    category: Mapped[str | None] = mapped_column(String(100))
+    priority: Mapped[CasePriority] = mapped_column(
+        Enum(CasePriority, name="case_priority", native_enum=False),
+        nullable=False,
+        default=CasePriority.NORMAL,
+        server_default=CasePriority.NORMAL.value,
+    )
+    business_status: Mapped[CaseStatus] = mapped_column(
+        Enum(CaseStatus, name="case_status", native_enum=False),
+        nullable=False,
+        default=CaseStatus.OPEN,
+        server_default=CaseStatus.OPEN.value,
+    )
+    assigned_to: Mapped[UUID | None] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("users.id", ondelete="RESTRICT"), index=True
+    )
+    claimed_by: Mapped[UUID | None] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("users.id", ondelete="RESTRICT"), index=True
+    )
+    claim_started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    claim_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
+    claim_version: Mapped[int | None] = mapped_column(Integer)
+    due_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
+    last_material_actor_id: Mapped[UUID | None] = mapped_column(PGUUID(as_uuid=True))
+    completed_reason: Mapped[str | None] = mapped_column(Text)
 
     channel: Mapped[Channel] = relationship(back_populates="jobs")
     transitions: Mapped[list[WorkflowTransition]] = relationship(back_populates="job")
@@ -296,8 +326,14 @@ class ApprovalRequest(IdentityMixin, Base):
         Enum(ApprovalStatus, name="approval_status"), nullable=False, default=ApprovalStatus.PENDING
     )
     requested_by: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
+    job_revision: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=1, server_default="1"
+    )
+    claimed_by: Mapped[UUID | None] = mapped_column(PGUUID(as_uuid=True))
+    claimed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     resolved_by: Mapped[UUID | None] = mapped_column(PGUUID(as_uuid=True))
     reason: Mapped[str | None] = mapped_column(Text)
+    invalidated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
@@ -409,6 +445,82 @@ class JobAttachment(IdentityMixin, Base):
     )
 
 
+class CaseRevision(IdentityMixin, Base):
+    __tablename__ = "case_revisions"
+    __table_args__ = (UniqueConstraint("job_id", "revision", name="uq_case_revision"),)
+
+    job_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("content_jobs.id", ondelete="CASCADE"), index=True
+    )
+    revision: Mapped[int] = mapped_column(Integer, nullable=False)
+    actor_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
+    change_type: Mapped[str] = mapped_column(String(100), nullable=False)
+    snapshot: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+
+class InternalNote(IdentityMixin, Base):
+    __tablename__ = "internal_notes"
+    __table_args__ = (Index("ix_internal_notes_job_created", "job_id", "created_at"),)
+
+    job_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("content_jobs.id", ondelete="RESTRICT"), nullable=False
+    )
+    job_revision: Mapped[int] = mapped_column(Integer, nullable=False)
+    author_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
+    content: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+
+class ChecklistItem(IdentityMixin, Base):
+    __tablename__ = "checklist_items"
+    __table_args__ = (
+        UniqueConstraint("job_id", "position", name="uq_checklist_job_position"),
+        Index("ix_checklist_job_required", "job_id", "required"),
+    )
+
+    job_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("content_jobs.id", ondelete="RESTRICT"), nullable=False
+    )
+    title: Mapped[str] = mapped_column(String(300), nullable=False)
+    position: Mapped[int] = mapped_column(Integer, nullable=False)
+    required: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    completed_by: Mapped[UUID | None] = mapped_column(PGUUID(as_uuid=True))
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+
+class CaseEvidence(IdentityMixin, Base):
+    __tablename__ = "case_evidence"
+    __table_args__ = (Index("ix_case_evidence_job_created", "job_id", "created_at"),)
+
+    job_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("content_jobs.id", ondelete="RESTRICT"), nullable=False
+    )
+    job_revision: Mapped[int] = mapped_column(Integer, nullable=False)
+    stored_file_id: Mapped[UUID | None] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("stored_files.id", ondelete="RESTRICT")
+    )
+    source: Mapped[str] = mapped_column(String(300), nullable=False)
+    structured_data: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
+    verification_status: Mapped[EvidenceVerificationStatus] = mapped_column(
+        Enum(EvidenceVerificationStatus, name="evidence_verification_status", native_enum=False),
+        nullable=False,
+        default=EvidenceVerificationStatus.UNVERIFIED,
+        server_default=EvidenceVerificationStatus.UNVERIFIED.value,
+    )
+    created_by: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+
 class Artifact(IdentityMixin, Base):
     __tablename__ = "artifacts"
     __table_args__ = (
@@ -436,3 +548,7 @@ def _reject_audit_mutation(*_: object) -> None:
 
 event.listen(AuditEvent, "before_update", _reject_audit_mutation)
 event.listen(AuditEvent, "before_delete", _reject_audit_mutation)
+event.listen(InternalNote, "before_update", _reject_audit_mutation)
+event.listen(InternalNote, "before_delete", _reject_audit_mutation)
+event.listen(CaseRevision, "before_update", _reject_audit_mutation)
+event.listen(CaseRevision, "before_delete", _reject_audit_mutation)

@@ -71,3 +71,36 @@ async def test_skip_locked_success_retry_and_max_attempts(
         assert claimed is not None
         retried = await QueueRepository(integration_session).fail(claimed.id, error="retry")
         assert retried.status == TaskStatus.RETRY
+
+
+async def test_worker_restart_recovers_stale_claim_and_preserves_terminal_failure(
+    integration_session: AsyncSession, tenant: Tenant
+) -> None:
+    async with integration_session.begin():
+        channel = Channel(tenant_id=tenant.id, name="Recovery", slug=f"recovery-{uuid4().hex}")
+        integration_session.add(channel)
+        await integration_session.flush()
+        job = ContentJob(
+            tenant_id=tenant.id,
+            channel_id=channel.id,
+            title="Recovery",
+            budget_limit_cents=0,
+        )
+        integration_session.add(job)
+        await integration_session.flush()
+        retryable = JobTask(job_id=job.id, task_type="RECOVER", max_attempts=2)
+        terminal = JobTask(job_id=job.id, task_type="TERMINAL", max_attempts=1)
+        integration_session.add_all([retryable, terminal])
+    async with integration_session.begin():
+        first = await QueueRepository(integration_session).claim_next(worker_id="dead-worker")
+        second = await QueueRepository(integration_session).claim_next(worker_id="dead-worker")
+        assert first is not None and second is not None
+        first.locked_at = datetime.now(UTC) - timedelta(minutes=10)
+        second.locked_at = datetime.now(UTC) - timedelta(minutes=10)
+    async with integration_session.begin():
+        recovered = await QueueRepository(integration_session).recover_stale(timeout_seconds=60)
+        assert recovered == 2
+    await integration_session.refresh(retryable)
+    await integration_session.refresh(terminal)
+    statuses = {retryable.status, terminal.status}
+    assert statuses == {TaskStatus.RETRY, TaskStatus.FAILED}

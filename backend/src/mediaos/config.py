@@ -26,6 +26,10 @@ class Settings(BaseSettings):
     minio_endpoint: AnyHttpUrl = AnyHttpUrl("http://localhost:9000")
     minio_root_user: SecretStr
     minio_root_password: SecretStr
+    mediaos_private_bucket: str = "mediaos-private"
+    mediaos_upload_max_bytes: int = 10 * 1024 * 1024
+    mediaos_session_ttl_seconds: int = 8 * 60 * 60
+    mediaos_cookie_secure: bool = False
 
     @property
     def async_database_url(self) -> URL:
@@ -52,6 +56,12 @@ class Settings(BaseSettings):
     @property
     def minio_health_url(self) -> str:
         return f"{str(self.minio_endpoint).rstrip('/')}/minio/health/ready"
+
+    @property
+    def minio_connection(self) -> tuple[str, bool]:
+        endpoint = str(self.minio_endpoint).rstrip("/")
+        secure = endpoint.startswith("https://")
+        return endpoint.removeprefix("https://").removeprefix("http://"), secure
 
 
 def get_frontend_origins() -> list[str]:

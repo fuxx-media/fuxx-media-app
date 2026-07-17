@@ -30,6 +30,7 @@ from mediaos.domain.enums import (
     ApprovalStatus,
     ArtifactKind,
     ProviderCallStatus,
+    RoleName,
     TaskStatus,
     WorkflowState,
 )
@@ -52,10 +53,79 @@ class TimestampMixin:
     )
 
 
+class Tenant(IdentityMixin, TimestampMixin, Base):
+    __tablename__ = "tenants"
+    __table_args__ = (UniqueConstraint("slug", name="uq_tenants_slug"),)
+
+    name: Mapped[str] = mapped_column(String(200), nullable=False)
+    slug: Mapped[str] = mapped_column(String(100), nullable=False)
+    active: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=True, server_default="true"
+    )
+
+
+class User(IdentityMixin, TimestampMixin, Base):
+    __tablename__ = "users"
+    __table_args__ = (UniqueConstraint("tenant_id", "email", name="uq_users_tenant_email"),)
+
+    tenant_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("tenants.id", ondelete="RESTRICT"),
+        nullable=False,
+        index=True,
+    )
+    email: Mapped[str] = mapped_column(String(320), nullable=False)
+    password_hash: Mapped[str] = mapped_column(String(500), nullable=False)
+    active: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=True, server_default="true"
+    )
+    roles: Mapped[list[UserRole]] = relationship(
+        back_populates="user", cascade="all, delete-orphan"
+    )
+
+
+class UserRole(Base):
+    __tablename__ = "user_roles"
+
+    user_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
+    )
+    role: Mapped[RoleName] = mapped_column(
+        Enum(RoleName, name="role_name"), primary_key=True, nullable=False
+    )
+    user: Mapped[User] = relationship(back_populates="roles")
+
+
+class AuthSession(IdentityMixin, Base):
+    __tablename__ = "auth_sessions"
+    __table_args__ = (
+        UniqueConstraint("token_hash", name="uq_auth_sessions_token_hash"),
+        Index("ix_auth_sessions_active", "token_hash", "expires_at", "revoked_at"),
+    )
+
+    user_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    token_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    csrf_token_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    last_seen_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
 class Channel(IdentityMixin, TimestampMixin, Base):
     __tablename__ = "channels"
-    __table_args__ = (UniqueConstraint("slug", name="uq_channels_slug"),)
+    __table_args__ = (UniqueConstraint("tenant_id", "slug", name="uq_channels_tenant_slug"),)
 
+    tenant_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("tenants.id", ondelete="RESTRICT"),
+        nullable=False,
+        index=True,
+    )
     name: Mapped[str] = mapped_column(String(200), nullable=False)
     slug: Mapped[str] = mapped_column(String(100), nullable=False)
     active: Mapped[bool] = mapped_column(
@@ -70,9 +140,15 @@ class ContentJob(IdentityMixin, TimestampMixin, Base):
         CheckConstraint("version >= 1", name="ck_content_jobs_version_positive"),
         CheckConstraint("budget_limit_cents >= 0", name="ck_content_jobs_budget_nonnegative"),
         CheckConstraint("spent_cents >= 0", name="ck_content_jobs_spent_nonnegative"),
-        Index("ix_content_jobs_state_created", "current_state", "created_at"),
+        Index("ix_content_jobs_tenant_state_created", "tenant_id", "current_state", "created_at"),
     )
 
+    tenant_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("tenants.id", ondelete="RESTRICT"),
+        nullable=False,
+        index=True,
+    )
     channel_id: Mapped[UUID] = mapped_column(
         PGUUID(as_uuid=True),
         ForeignKey("channels.id", ondelete="RESTRICT"),
@@ -126,6 +202,12 @@ class AuditEvent(IdentityMixin, Base):
     __tablename__ = "audit_events"
     __table_args__ = (Index("ix_audit_events_job_created", "job_id", "created_at"),)
 
+    tenant_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("tenants.id", ondelete="RESTRICT"),
+        nullable=False,
+        index=True,
+    )
     job_id: Mapped[UUID | None] = mapped_column(
         PGUUID(as_uuid=True), ForeignKey("content_jobs.id", ondelete="SET NULL"), index=True
     )
@@ -256,6 +338,74 @@ class JobTask(IdentityMixin, Base):
     )
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now()
+    )
+
+
+class IdempotencyRecord(IdentityMixin, Base):
+    __tablename__ = "idempotency_records"
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "scope", "key", name="uq_idempotency_tenant_scope_key"),
+        Index("ix_idempotency_created", "created_at"),
+    )
+
+    tenant_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False
+    )
+    scope: Mapped[str] = mapped_column(String(100), nullable=False)
+    key: Mapped[str] = mapped_column(String(200), nullable=False)
+    request_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    response_status: Mapped[int] = mapped_column(Integer, nullable=False)
+    response_body: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+
+class StoredFile(IdentityMixin, Base):
+    __tablename__ = "stored_files"
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "sha256", name="uq_stored_files_tenant_sha256"),
+        UniqueConstraint("bucket", "object_key", name="uq_stored_files_object"),
+        CheckConstraint("size_bytes > 0", name="ck_stored_files_size_positive"),
+    )
+
+    tenant_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("tenants.id", ondelete="RESTRICT"),
+        nullable=False,
+        index=True,
+    )
+    created_by: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("users.id", ondelete="RESTRICT"), nullable=False
+    )
+    sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    detected_mime_type: Mapped[str] = mapped_column(String(100), nullable=False)
+    size_bytes: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    bucket: Mapped[str] = mapped_column(String(100), nullable=False)
+    object_key: Mapped[str] = mapped_column(String(500), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+
+class JobAttachment(IdentityMixin, Base):
+    __tablename__ = "job_attachments"
+    __table_args__ = (
+        UniqueConstraint("job_id", "stored_file_id", name="uq_job_attachments_job_file"),
+    )
+
+    job_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("content_jobs.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    stored_file_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("stored_files.id", ondelete="RESTRICT"), nullable=False
+    )
+    original_filename: Mapped[str] = mapped_column(String(255), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
     )
 
 

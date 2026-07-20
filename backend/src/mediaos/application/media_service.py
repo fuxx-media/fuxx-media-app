@@ -40,6 +40,7 @@ from mediaos.domain.enums import (
     MediaVerificationStatus,
     RetentionStatus,
     RightsReviewStatus,
+    RoleName,
     TaskStatus,
 )
 from mediaos.domain.models import (
@@ -327,20 +328,51 @@ class MediaService:
         status: MediaStatus | None,
         media_type: str | None,
         category_id: UUID | None,
+        tag_id: UUID | None,
+        rights_status: RightsReviewStatus | None,
+        approval_status: MediaApprovalStatus | None,
+        archived: bool | None,
+        created_by: UUID | None,
+        assigned_to: UUID | None,
+        created_from: datetime | None,
+        created_to: datetime | None,
+        rights_expiring_before: datetime | None,
+        sort: str,
         page: int,
         page_size: int,
     ) -> dict[str, Any]:
         tenant_id = self._tenant(actor)
         filters: list[Any] = [MediaAsset.tenant_id == tenant_id]
+        if self._reader_only(actor):
+            filters.append(MediaAsset.status == MediaStatus.READY)
         if query:
             needle = query.strip()
+            tag_match = (
+                select(MediaAssetTag.media_asset_id)
+                .join(MediaTag, MediaTag.id == MediaAssetTag.tag_id)
+                .where(
+                    MediaAssetTag.media_asset_id == MediaAsset.id,
+                    MediaTag.tenant_id == tenant_id,
+                    or_(
+                        MediaTag.name.contains(needle, autoescape=True),
+                        cast(MediaTag.synonyms, String).contains(needle, autoescape=True),
+                    ),
+                )
+                .exists()
+            )
             filters.append(
                 or_(
                     MediaAsset.title.contains(needle, autoescape=True),
                     MediaAsset.description.contains(needle, autoescape=True),
                     cast(MediaAsset.id, String).contains(needle, autoescape=True),
+                    cast(MediaAsset.created_by, String).contains(needle, autoescape=True),
+                    cast(MediaAsset.assigned_to, String).contains(needle, autoescape=True),
                     MediaVersion.original_filename.contains(needle, autoescape=True),
+                    MediaVersion.detected_mime_type.contains(needle, autoescape=True),
                     MediaVersion.sha256.contains(needle, autoescape=True),
+                    MediaCategory.name.contains(needle, autoescape=True),
+                    MediaRights.rights_holder.contains(needle, autoescape=True),
+                    tag_match,
                 )
             )
         if status is not None:
@@ -349,21 +381,57 @@ class MediaService:
             filters.append(MediaAsset.media_type == media_type)
         if category_id:
             filters.append(MediaAsset.category_id == category_id)
+        if tag_id:
+            filters.append(
+                select(MediaAssetTag.media_asset_id)
+                .where(
+                    MediaAssetTag.media_asset_id == MediaAsset.id,
+                    MediaAssetTag.tag_id == tag_id,
+                )
+                .exists()
+            )
+        if rights_status is not None:
+            filters.append(MediaRights.review_status == rights_status)
+        if approval_status is not None:
+            filters.append(MediaAsset.approval_status == approval_status)
+        if archived is not None:
+            filters.append(MediaAsset.archived.is_(archived))
+        if created_by is not None:
+            filters.append(MediaAsset.created_by == created_by)
+        if assigned_to is not None:
+            filters.append(MediaAsset.assigned_to == assigned_to)
+        if created_from is not None:
+            filters.append(MediaAsset.created_at >= created_from)
+        if created_to is not None:
+            filters.append(MediaAsset.created_at <= created_to)
+        if rights_expiring_before is not None:
+            filters.extend(
+                [
+                    MediaRights.usage_end.is_not(None),
+                    MediaRights.usage_end <= rights_expiring_before,
+                ]
+            )
         base = (
             select(MediaAsset)
             .outerjoin(
                 MediaVersion,
                 (MediaVersion.media_asset_id == MediaAsset.id) & MediaVersion.is_current.is_(True),
             )
+            .outerjoin(MediaCategory, MediaCategory.id == MediaAsset.category_id)
+            .outerjoin(MediaRights, MediaRights.media_asset_id == MediaAsset.id)
             .where(*filters)
         )
+        order = {
+            "updated_desc": (MediaAsset.updated_at.desc(), MediaAsset.id),
+            "updated_asc": (MediaAsset.updated_at, MediaAsset.id),
+            "created_desc": (MediaAsset.created_at.desc(), MediaAsset.id),
+            "title_asc": (MediaAsset.title, MediaAsset.id),
+        }[sort]
         total = await self.session.scalar(select(func.count()).select_from(base.subquery()))
         items = list(
             (
                 await self.session.scalars(
-                    base.order_by(MediaAsset.updated_at.desc(), MediaAsset.id)
-                    .offset((page - 1) * page_size)
-                    .limit(page_size)
+                    base.order_by(*order).offset((page - 1) * page_size).limit(page_size)
                 )
             ).unique()
         )
@@ -377,6 +445,8 @@ class MediaService:
     async def detail(self, *, actor: Actor, asset_id: UUID) -> dict[str, Any]:
         tenant_id = self._tenant(actor)
         asset = await self._asset(tenant_id, asset_id)
+        if self._reader_only(actor) and asset.status != MediaStatus.READY:
+            raise MediaNotFoundError("Media asset was not found in the authenticated tenant")
         versions = list(
             await self.session.scalars(
                 select(MediaVersion)
@@ -422,6 +492,13 @@ class MediaService:
                 select(MediaApproval)
                 .where(MediaApproval.media_asset_id == asset.id)
                 .order_by(MediaApproval.created_at.desc())
+            )
+        )
+        deletion_requests = list(
+            await self.session.scalars(
+                select(MediaDeletionRequest)
+                .where(MediaDeletionRequest.media_asset_id == asset.id)
+                .order_by(MediaDeletionRequest.requested_at.desc())
             )
         )
         tags = list(
@@ -479,6 +556,18 @@ class MediaService:
             "relations": [self._relation_dict(item) for item in relations],
             "rights": self._rights_dict(rights) if rights else None,
             "approvals": [self._approval_dict(item) for item in approvals],
+            "deletion_requests": [
+                {
+                    "id": str(item.id),
+                    "requested_by": str(item.requested_by),
+                    "approved_by": str(item.approved_by) if item.approved_by else None,
+                    "reason": item.reason,
+                    "status": item.status,
+                    "requested_at": item.requested_at.isoformat(),
+                    "approved_at": item.approved_at.isoformat() if item.approved_at else None,
+                }
+                for item in deletion_requests
+            ],
             "audit": [
                 {
                     "id": str(item.id),
@@ -509,7 +598,9 @@ class MediaService:
             self._expect_revision(asset, expected_revision)
             if category_id is not None and not await self.session.scalar(
                 select(MediaCategory.id).where(
-                    MediaCategory.id == category_id, MediaCategory.tenant_id == tenant_id
+                    MediaCategory.id == category_id,
+                    MediaCategory.tenant_id == tenant_id,
+                    MediaCategory.active.is_(True),
                 )
             ):
                 raise MediaNotFoundError("Media category was not found")
@@ -517,7 +608,9 @@ class MediaService:
                 found = set(
                     await self.session.scalars(
                         select(MediaTag.id).where(
-                            MediaTag.id.in_(tag_ids), MediaTag.tenant_id == tenant_id
+                            MediaTag.id.in_(tag_ids),
+                            MediaTag.tenant_id == tenant_id,
+                            MediaTag.active.is_(True),
                         )
                     )
                 )
@@ -574,6 +667,46 @@ class MediaService:
             )
             self.session.add(tag)
             self._audit(actor, None, "MEDIA_TAG_CREATED", {"name": tag.name})
+        return tag
+
+    async def set_category_active(
+        self, *, actor: Actor, category_id: UUID, active: bool
+    ) -> MediaCategory:
+        tenant_id = self._tenant(actor)
+        async with self.session.begin():
+            category = await self.session.scalar(
+                select(MediaCategory)
+                .where(MediaCategory.id == category_id, MediaCategory.tenant_id == tenant_id)
+                .with_for_update()
+            )
+            if category is None:
+                raise MediaNotFoundError("Media category was not found")
+            category.active = active
+            self._audit(
+                actor,
+                None,
+                "MEDIA_CATEGORY_ACTIVATED" if active else "MEDIA_CATEGORY_DEACTIVATED",
+                {"category_id": str(category.id)},
+            )
+        return category
+
+    async def set_tag_active(self, *, actor: Actor, tag_id: UUID, active: bool) -> MediaTag:
+        tenant_id = self._tenant(actor)
+        async with self.session.begin():
+            tag = await self.session.scalar(
+                select(MediaTag)
+                .where(MediaTag.id == tag_id, MediaTag.tenant_id == tenant_id)
+                .with_for_update()
+            )
+            if tag is None:
+                raise MediaNotFoundError("Media tag was not found")
+            tag.active = active
+            self._audit(
+                actor,
+                None,
+                "MEDIA_TAG_ACTIVATED" if active else "MEDIA_TAG_DEACTIVATED",
+                {"tag_id": str(tag.id)},
+            )
         return tag
 
     async def taxonomy(self, *, actor: Actor) -> dict[str, Any]:
@@ -717,6 +850,7 @@ class MediaService:
         reason: str,
     ) -> MediaRights:
         tenant_id = self._tenant(actor)
+        gate_error: str | None = None
         async with self.session.begin():
             asset = await self._asset(tenant_id, asset_id, locked=True)
             rights = await self.session.scalar(
@@ -725,27 +859,46 @@ class MediaService:
             if rights is None:
                 raise MediaRightsError("Rights information is missing")
             now = datetime.now(UTC)
-            if approve and rights.usage_end is not None and rights.usage_end <= now:
-                rights.review_status = RightsReviewStatus.EXPIRED
-                raise MediaRightsError("Rights usage period has expired")
-            rights.review_status = (
-                RightsReviewStatus.APPROVED if approve else RightsReviewStatus.REJECTED
-            )
+            gate_error = self._rights_gate_error(rights, now) if approve else None
+            if gate_error is not None:
+                rights.review_status = (
+                    RightsReviewStatus.EXPIRED
+                    if rights.usage_end is not None and rights.usage_end <= now
+                    else RightsReviewStatus.CONFLICT
+                )
+            else:
+                rights.review_status = (
+                    RightsReviewStatus.APPROVED if approve else RightsReviewStatus.REJECTED
+                )
             rights.reviewed_by = actor.id
             rights.review_reason = reason.strip()
             rights.reviewed_at = now
-            asset.status = MediaStatus.CONTENT_REVIEW if approve else MediaStatus.CHANGES_REQUESTED
+            asset.status = (
+                MediaStatus.RIGHTS_REVIEW
+                if gate_error is not None
+                else MediaStatus.CONTENT_REVIEW
+                if approve
+                else MediaStatus.CHANGES_REQUESTED
+            )
             asset.revision += 1
             self._audit(
                 actor,
                 asset,
-                "MEDIA_RIGHTS_APPROVED" if approve else "MEDIA_RIGHTS_REJECTED",
-                {"reason": reason.strip()},
+                "MEDIA_RIGHTS_BLOCKED"
+                if gate_error is not None
+                else "MEDIA_RIGHTS_APPROVED"
+                if approve
+                else "MEDIA_RIGHTS_REJECTED",
+                {"reason": reason.strip(), "gate_error": gate_error},
             )
+        if gate_error is not None:
+            raise MediaRightsError(gate_error)
         return rights
 
     async def request_approval(self, *, actor: Actor, asset_id: UUID) -> MediaApproval:
         tenant_id = self._tenant(actor)
+        approval: MediaApproval | None = None
+        gate_error: str | None = None
         async with self.session.begin():
             asset = await self._asset(tenant_id, asset_id, locked=True)
             rights = await self.session.scalar(
@@ -753,27 +906,46 @@ class MediaService:
             )
             if rights is None or rights.review_status != RightsReviewStatus.APPROVED:
                 raise MediaRightsError("Approved rights are required before content approval")
-            version = await self._current_version(asset.id)
-            if await self.session.scalar(
-                select(MediaApproval.id).where(
-                    MediaApproval.media_version_id == version.id,
-                    MediaApproval.status == MediaApprovalStatus.PENDING,
+            gate_error = self._rights_gate_error(rights, datetime.now(UTC))
+            if asset.technical_status != MediaTechnicalStatus.VERIFIED:
+                gate_error = "Technical verification is required before content approval"
+            if gate_error is not None:
+                rights.review_status = (
+                    RightsReviewStatus.EXPIRED
+                    if rights.usage_end is not None and rights.usage_end <= datetime.now(UTC)
+                    else RightsReviewStatus.CONFLICT
                 )
-            ):
-                raise MediaConflictError("Approval is already pending for this media version")
-            approval = MediaApproval(
-                tenant_id=tenant_id,
-                media_asset_id=asset.id,
-                media_version_id=version.id,
-                requested_by=actor.id,
-                status=MediaApprovalStatus.PENDING,
-            )
-            self.session.add(approval)
-            version.approval_status = MediaApprovalStatus.PENDING
-            asset.approval_status = MediaApprovalStatus.PENDING
-            asset.status = MediaStatus.CONTENT_REVIEW
-            asset.revision += 1
-            self._audit(actor, asset, "MEDIA_APPROVAL_REQUESTED", {"version_id": str(version.id)})
+                asset.status = MediaStatus.RIGHTS_REVIEW
+                asset.revision += 1
+                self._audit(actor, asset, "MEDIA_APPROVAL_GATE_BLOCKED", {"reason": gate_error})
+            else:
+                version = await self._current_version(asset.id)
+                if await self.session.scalar(
+                    select(MediaApproval.id).where(
+                        MediaApproval.media_version_id == version.id,
+                        MediaApproval.status == MediaApprovalStatus.PENDING,
+                    )
+                ):
+                    raise MediaConflictError("Approval is already pending for this media version")
+                approval = MediaApproval(
+                    tenant_id=tenant_id,
+                    media_asset_id=asset.id,
+                    media_version_id=version.id,
+                    requested_by=actor.id,
+                    status=MediaApprovalStatus.PENDING,
+                )
+                self.session.add(approval)
+                version.approval_status = MediaApprovalStatus.PENDING
+                asset.approval_status = MediaApprovalStatus.PENDING
+                asset.status = MediaStatus.CONTENT_REVIEW
+                asset.revision += 1
+                self._audit(
+                    actor, asset, "MEDIA_APPROVAL_REQUESTED", {"version_id": str(version.id)}
+                )
+        if gate_error is not None:
+            raise MediaRightsError(gate_error)
+        if approval is None:
+            raise MediaConflictError("Media approval could not be created")
         return approval
 
     async def resolve_approval(
@@ -804,6 +976,16 @@ class MediaService:
             version = await self.session.get(MediaVersion, approval.media_version_id)
             if version is None or not version.is_current:
                 raise MediaConflictError("Approval is not bound to the current version")
+            rights = await self.session.scalar(
+                select(MediaRights).where(MediaRights.media_asset_id == asset.id)
+            )
+            if rights is None or rights.review_status != RightsReviewStatus.APPROVED:
+                raise MediaRightsError("Current approved rights are required")
+            gate_error = self._rights_gate_error(rights, datetime.now(UTC))
+            if gate_error is not None:
+                raise MediaRightsError(gate_error)
+            if asset.technical_status != MediaTechnicalStatus.VERIFIED:
+                raise MediaConflictError("Current media version is not technically verified")
             approval.status = (
                 MediaApprovalStatus.APPROVED if approve else MediaApprovalStatus.REJECTED
             )
@@ -888,6 +1070,20 @@ class MediaService:
             )
             if relations:
                 raise MediaDeletionError("Media asset has active relationships")
+            collection_references = await self.session.scalar(
+                select(func.count(MediaCollectionItem.id)).where(
+                    MediaCollectionItem.media_asset_id == asset.id
+                )
+            )
+            proof_references = await self.session.scalar(
+                select(func.count(MediaRights.id)).where(
+                    MediaRights.proof_media_asset_id == asset.id
+                )
+            )
+            if collection_references or proof_references:
+                raise MediaDeletionError(
+                    "Media asset still has active collection or rights references"
+                )
             request.status = "APPROVED"
             request.approved_by = actor.id
             request.approved_at = datetime.now(UTC)
@@ -920,6 +1116,34 @@ class MediaService:
             self._collection_history(collection, actor, "CREATED", [])
             self._audit(
                 actor, None, "MEDIA_COLLECTION_CREATED", {"collection_id": str(collection.id)}
+            )
+        return collection
+
+    async def update_collection(
+        self,
+        *,
+        actor: Actor,
+        collection_id: UUID,
+        name: str,
+        description: str | None,
+        visibility: MediaCollectionVisibility,
+        status: MediaCollectionStatus,
+    ) -> MediaCollection:
+        tenant_id = self._tenant(actor)
+        async with self.session.begin():
+            collection = await self._collection(tenant_id, collection_id, locked=True)
+            collection.name = name.strip()
+            collection.description = (description or "").strip() or None
+            collection.visibility = visibility
+            collection.status = status
+            self._collection_history(
+                collection, actor, "UPDATED", await self._collection_ids(collection.id)
+            )
+            self._audit(
+                actor,
+                None,
+                "MEDIA_COLLECTION_UPDATED",
+                {"collection_id": str(collection.id)},
             )
         return collection
 
@@ -991,6 +1215,49 @@ class MediaService:
             )
         return collection
 
+    async def remove_collection_item(
+        self, *, actor: Actor, collection_id: UUID, asset_id: UUID
+    ) -> MediaCollection:
+        tenant_id = self._tenant(actor)
+        async with self.session.begin():
+            collection = await self._collection(tenant_id, collection_id, locked=True)
+            item = await self.session.scalar(
+                select(MediaCollectionItem)
+                .where(
+                    MediaCollectionItem.collection_id == collection.id,
+                    MediaCollectionItem.media_asset_id == asset_id,
+                )
+                .with_for_update()
+            )
+            if item is None:
+                raise MediaNotFoundError("Media collection item was not found")
+            await self.session.delete(item)
+            await self.session.flush()
+            remaining = list(
+                await self.session.scalars(
+                    select(MediaCollectionItem)
+                    .where(MediaCollectionItem.collection_id == collection.id)
+                    .order_by(MediaCollectionItem.position)
+                    .with_for_update()
+                )
+            )
+            await self.session.execute(
+                update(MediaCollectionItem)
+                .where(MediaCollectionItem.collection_id == collection.id)
+                .values(position=MediaCollectionItem.position + 1000000)
+            )
+            for position, remaining_item in enumerate(remaining, start=1):
+                remaining_item.position = position
+            ids = [remaining_item.media_asset_id for remaining_item in remaining]
+            self._collection_history(collection, actor, "ITEM_REMOVED", ids)
+            self._audit(
+                actor,
+                None,
+                "MEDIA_COLLECTION_ITEM_REMOVED",
+                {"collection_id": str(collection.id), "asset_id": str(asset_id)},
+            )
+        return collection
+
     async def list_collections(self, *, actor: Actor) -> list[dict[str, Any]]:
         tenant_id = self._tenant(actor)
         collections = list(
@@ -1029,6 +1296,8 @@ class MediaService:
     ) -> tuple[MediaAsset, MediaVersion, MediaFile]:
         tenant_id = self._tenant(actor)
         asset = await self._asset(tenant_id, asset_id)
+        if self._reader_only(actor) and asset.status != MediaStatus.READY:
+            raise MediaNotFoundError("Media asset was not found in the authenticated tenant")
         version = (
             await self.session.get(MediaVersion, version_id)
             if version_id
@@ -1243,6 +1512,22 @@ class MediaService:
         if actor.tenant_id is None:
             raise TenantBoundaryError("Authenticated actor has no tenant")
         return actor.tenant_id
+
+    @staticmethod
+    def _reader_only(actor: Actor) -> bool:
+        return RoleName.READER in actor.roles and actor.roles.isdisjoint(
+            {RoleName.ADMIN, RoleName.BACKOFFICE, RoleName.REVIEWER}
+        )
+
+    @staticmethod
+    def _rights_gate_error(rights: MediaRights, now: datetime) -> str | None:
+        if not rights.allowed_uses or not rights.allowed_regions or not rights.allowed_channels:
+            return "Rights usage, regions, and channels must be complete"
+        if rights.usage_start is not None and rights.usage_start > now:
+            return "Rights usage period has not started"
+        if rights.usage_end is not None and rights.usage_end <= now:
+            return "Rights usage period has expired"
+        return None
 
     @staticmethod
     def _expect_revision(asset: MediaAsset, expected_revision: int) -> None:

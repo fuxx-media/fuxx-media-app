@@ -22,6 +22,7 @@ from mediaos.domain.enums import (
 from mediaos.domain.models import (
     AuditEvent,
     MediaAsset,
+    MediaCollectionItem,
     MediaFile,
     MediaRelation,
     MediaRights,
@@ -217,11 +218,22 @@ async def _purge(task: MediaTask, storage: ObjectStorage) -> None:
         )
         if relations:
             raise ValueError("media asset still has active relationships")
+        collection_references = await session.scalar(
+            select(func.count(MediaCollectionItem.id)).where(
+                MediaCollectionItem.media_asset_id == asset.id
+            )
+        )
+        proof_references = await session.scalar(
+            select(func.count(MediaRights.id)).where(MediaRights.proof_media_asset_id == asset.id)
+        )
+        if collection_references or proof_references:
+            raise ValueError("media asset still has active collection or rights references")
         versions = list(
             await session.scalars(
                 select(MediaVersion).where(MediaVersion.media_asset_id == asset.id)
             )
         )
+        purged_file_ids: list[str] = []
         for file_id in {version.media_file_id for version in versions}:
             other_references = await session.scalar(
                 select(func.count(MediaVersion.id)).where(
@@ -235,10 +247,26 @@ async def _purge(task: MediaTask, storage: ObjectStorage) -> None:
             if media_file is not None and media_file.storage_status != MediaStorageStatus.DELETED:
                 await storage.remove(bucket=media_file.bucket, object_key=media_file.object_key)
                 media_file.storage_status = MediaStorageStatus.DELETED
+                purged_file_ids.append(str(media_file.id))
         asset.status = MediaStatus.DELETED
         asset.retention_status = RetentionStatus.PURGED
         asset.storage_status = MediaStorageStatus.DELETED
         asset.revision += 1
+        session.add(
+            AuditEvent(
+                tenant_id=asset.tenant_id,
+                job_id=None,
+                media_asset_id=asset.id,
+                actor_id=MEDIA_WORKER_ACTOR_ID,
+                actor_type=ActorType.WORKER,
+                event_type="MEDIA_PURGED",
+                payload={
+                    "task_id": str(task.id),
+                    "purged_file_ids": purged_file_ids,
+                    "external_effect": False,
+                },
+            )
+        )
 
 
 async def _audit_task(session: AsyncSession, task: MediaTask, event_type: str, error: str) -> None:

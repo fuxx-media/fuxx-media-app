@@ -33,9 +33,12 @@ from mediaos.config import get_settings
 from mediaos.database import get_session
 from mediaos.domain.actor import Actor
 from mediaos.domain.enums import (
+    MediaApprovalStatus,
+    MediaCollectionStatus,
     MediaCollectionVisibility,
     MediaRelationType,
     MediaStatus,
+    RightsReviewStatus,
     RoleName,
 )
 from mediaos.infrastructure.object_storage import ObjectStorage
@@ -63,6 +66,10 @@ class CategoryBody(BaseModel):
 class TagBody(BaseModel):
     name: str = Field(min_length=1, max_length=100)
     synonyms: list[str] = Field(default_factory=list, max_length=50)
+
+
+class ActiveBody(BaseModel):
+    active: bool
 
 
 class RelationBody(BaseModel):
@@ -116,6 +123,10 @@ class CollectionBody(BaseModel):
     visibility: MediaCollectionVisibility = MediaCollectionVisibility.TENANT
 
 
+class CollectionUpdateBody(CollectionBody):
+    status: MediaCollectionStatus = MediaCollectionStatus.ACTIVE
+
+
 class CollectionItemBody(BaseModel):
     asset_id: UUID
 
@@ -132,6 +143,19 @@ async def list_media_assets(
     media_status: MediaStatus | None = None,
     media_type: Annotated[str | None, Query(max_length=30)] = None,
     category_id: UUID | None = None,
+    tag_id: UUID | None = None,
+    rights_status: RightsReviewStatus | None = None,
+    approval_status: MediaApprovalStatus | None = None,
+    archived: bool | None = None,
+    created_by: UUID | None = None,
+    assigned_to: UUID | None = None,
+    created_from: datetime | None = None,
+    created_to: datetime | None = None,
+    rights_expiring_before: datetime | None = None,
+    sort: Annotated[
+        str,
+        Query(pattern=r"^(updated_desc|updated_asc|created_desc|title_asc)$"),
+    ] = "updated_desc",
     page: Annotated[int, Query(ge=1)] = 1,
     page_size: Annotated[int, Query(ge=1, le=100)] = 24,
 ) -> dict[str, Any]:
@@ -141,6 +165,16 @@ async def list_media_assets(
         status=media_status,
         media_type=media_type,
         category_id=category_id,
+        tag_id=tag_id,
+        rights_status=rights_status,
+        approval_status=approval_status,
+        archived=archived,
+        created_by=created_by,
+        assigned_to=assigned_to,
+        created_from=created_from,
+        created_to=created_to,
+        rights_expiring_before=rights_expiring_before,
+        sort=sort,
         page=page,
         page_size=page_size,
     )
@@ -252,6 +286,32 @@ async def create_media_tag(
 ) -> dict[str, Any]:
     item = await MediaService(session).create_tag(actor=actor, **body.model_dump())
     return {"id": str(item.id), "name": item.name, "synonyms": item.synonyms}
+
+
+@router.patch("/media-categories/{category_id}")
+async def set_media_category_active(
+    category_id: UUID,
+    body: ActiveBody,
+    session: Session,
+    actor: Annotated[Actor, Depends(require_admin_actor)],
+) -> dict[str, Any]:
+    item = await MediaService(session).set_category_active(
+        actor=actor, category_id=category_id, active=body.active
+    )
+    return {"id": str(item.id), "active": item.active}
+
+
+@router.patch("/media-tags/{tag_id}")
+async def set_media_tag_active(
+    tag_id: UUID,
+    body: ActiveBody,
+    session: Session,
+    actor: Annotated[Actor, Depends(require_admin_actor)],
+) -> dict[str, Any]:
+    item = await MediaService(session).set_tag_active(
+        actor=actor, tag_id=tag_id, active=body.active
+    )
+    return {"id": str(item.id), "active": item.active}
 
 
 @router.post("/media-assets/{asset_id}/relations")
@@ -428,6 +488,19 @@ async def create_media_collection(
     return {"id": str(item.id), "name": item.name}
 
 
+@router.patch("/media-collections/{collection_id}")
+async def update_media_collection(
+    collection_id: UUID,
+    body: CollectionUpdateBody,
+    session: Session,
+    actor: Annotated[Actor, Depends(require_write_actor)],
+) -> dict[str, Any]:
+    item = await MediaService(session).update_collection(
+        actor=actor, collection_id=collection_id, **body.model_dump()
+    )
+    return {"id": str(item.id), "name": item.name, "status": item.status.value}
+
+
 @router.post("/media-collections/{collection_id}/items")
 async def add_media_collection_item(
     collection_id: UUID,
@@ -450,6 +523,19 @@ async def reorder_media_collection(
 ) -> dict[str, Any]:
     item = await MediaService(session).reorder_collection(
         actor=actor, collection_id=collection_id, asset_ids=body.asset_ids
+    )
+    return {"id": str(item.id), "updated_at": item.updated_at.isoformat()}
+
+
+@router.delete("/media-collections/{collection_id}/items/{asset_id}")
+async def remove_media_collection_item(
+    collection_id: UUID,
+    asset_id: UUID,
+    session: Session,
+    actor: Annotated[Actor, Depends(require_write_actor)],
+) -> dict[str, Any]:
+    item = await MediaService(session).remove_collection_item(
+        actor=actor, collection_id=collection_id, asset_id=asset_id
     )
     return {"id": str(item.id), "updated_at": item.updated_at.isoformat()}
 

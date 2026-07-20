@@ -54,6 +54,7 @@ def validate_media(
     detected_mime, signature = _detect(content)
     if detected_mime not in ALLOWED_MIME_TYPES:
         raise UploadValidationError("Media signature is not an allowed file type")
+    _ensure_complete_structure(content, detected_mime)
     media_type, expected_extensions = ALLOWED_MIME_TYPES[detected_mime]
     issues: list[str] = []
     normalized_claim = (claimed_mime_type or "").split(";", maxsplit=1)[0].strip().lower()
@@ -94,6 +95,13 @@ def _detect(content: bytes) -> tuple[str, str]:
     if len(content) >= 12 and content[4:8] == b"ftyp":
         return "video/mp4", "MP4_FTYP"
     return "application/octet-stream", "UNKNOWN"
+
+
+def _ensure_complete_structure(content: bytes, mime_type: str) -> None:
+    if mime_type == "application/pdf" and b"%%EOF" not in content[-1024:]:
+        raise UploadValidationError("PDF upload is incomplete")
+    if mime_type == "video/mp4" and (b"moov" not in content or b"mdat" not in content):
+        raise UploadValidationError("MP4 upload is incomplete")
 
 
 def extract_technical_metadata(content: bytes, mime_type: str) -> dict[str, Any]:
@@ -275,4 +283,39 @@ def _mp4_metadata(content: bytes) -> dict[str, Any]:
             duration = int.from_bytes(content[base + 4 : base + 4 + duration_size], "big")
             if timescale:
                 metadata["duration_seconds"] = round(duration / timescale, 6)
+    codec_markers = {
+        b"avc1": "H.264/AVC",
+        b"avc3": "H.264/AVC",
+        b"hvc1": "H.265/HEVC",
+        b"hev1": "H.265/HEVC",
+        b"vp09": "VP9",
+        b"av01": "AV1",
+    }
+    metadata["codec"] = next(
+        (codec for marker, codec in codec_markers.items() if marker in content), "UNKNOWN"
+    )
+    for payload in _mp4_box_payloads(content, b"tkhd"):
+        if len(payload) < 8:
+            continue
+        width = int.from_bytes(payload[-8:-4], "big") >> 16
+        height = int.from_bytes(payload[-4:], "big") >> 16
+        if width and height:
+            metadata["width"] = width
+            metadata["height"] = height
+            break
     return metadata
+
+
+def _mp4_box_payloads(content: bytes, box_type: bytes) -> list[bytes]:
+    payloads: list[bytes] = []
+    offset = 0
+    while True:
+        marker = content.find(box_type, offset)
+        if marker < 4:
+            return payloads
+        start = marker - 4
+        size = int.from_bytes(content[start:marker], "big")
+        end = start + size
+        if size >= 8 and end <= len(content):
+            payloads.append(content[marker + 4 : end])
+        offset = marker + 4

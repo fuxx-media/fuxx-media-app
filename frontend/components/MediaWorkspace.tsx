@@ -20,6 +20,7 @@ import type {
 } from "@/types/system";
 
 type Props = { user: AuthenticatedUser };
+const MEDIA_PAGE_SIZE = 12;
 
 export function MediaWorkspace({ user }: Props) {
   const [items, setItems] = useState<MediaAssetSummary[]>([]);
@@ -27,29 +28,56 @@ export function MediaWorkspace({ user }: Props) {
   const [taxonomy, setTaxonomy] = useState<MediaTaxonomy>({ categories: [], tags: [] });
   const [collections, setCollections] = useState<MediaCollection[]>([]);
   const [query, setQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
+  const [mediaTypeFilter, setMediaTypeFilter] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState("");
+  const [rightsFilter, setRightsFilter] = useState("");
+  const [sort, setSort] = useState("updated_desc");
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
+  const [viewMode, setViewMode] = useState<"list" | "cards">("cards");
   const [message, setMessage] = useState("Mediathek wird geladen …");
   const [busy, setBusy] = useState(false);
   const canWrite = user.roles.some((role) => role === "ADMIN" || role === "BACKOFFICE");
   const canReview = user.roles.some((role) => role === "ADMIN" || role === "REVIEWER");
   const canAdmin = user.roles.includes("ADMIN");
 
-  const reload = useCallback(async () => {
-    const [assets, taxonomyResult, collectionResult] = await Promise.all([
-      fetchMediaAssets(query),
-      fetchMediaTaxonomy(),
-      fetchMediaCollections(),
-    ]);
-    setItems(assets.items);
-    setTaxonomy(taxonomyResult);
-    setCollections(collectionResult.items);
-    if (detail) setDetail(await fetchMediaAsset(detail.id));
-    setMessage(`${assets.total} Medienobjekte`);
-  }, [detail, query]);
+  const reload = useCallback(
+    async (targetPage = page) => {
+      const [assets, taxonomyResult, collectionResult] = await Promise.all([
+        fetchMediaAssets({
+          query,
+          page: targetPage,
+          pageSize: MEDIA_PAGE_SIZE,
+          status: statusFilter,
+          mediaType: mediaTypeFilter,
+          categoryId: categoryFilter,
+          rightsStatus: rightsFilter,
+          sort,
+        }),
+        fetchMediaTaxonomy(),
+        fetchMediaCollections(),
+      ]);
+      setItems(assets.items);
+      setPage(assets.page);
+      setTotal(assets.total);
+      setTaxonomy(taxonomyResult);
+      setCollections(collectionResult.items);
+      if (detail) setDetail(await fetchMediaAsset(detail.id));
+      setMessage(`${assets.total} Medienobjekte`);
+    },
+    [categoryFilter, detail, mediaTypeFilter, page, query, rightsFilter, sort, statusFilter],
+  );
 
   useEffect(() => {
-    void Promise.all([fetchMediaAssets(), fetchMediaTaxonomy(), fetchMediaCollections()])
+    void Promise.all([
+      fetchMediaAssets({ pageSize: MEDIA_PAGE_SIZE }),
+      fetchMediaTaxonomy(),
+      fetchMediaCollections(),
+    ])
       .then(([assets, taxonomyResult, collectionResult]) => {
         setItems(assets.items);
+        setTotal(assets.total);
         setTaxonomy(taxonomyResult);
         setCollections(collectionResult.items);
         setMessage(`${assets.total} Medienobjekte`);
@@ -59,12 +87,15 @@ export function MediaWorkspace({ user }: Props) {
       );
   }, []);
 
-  async function run(action: () => Promise<unknown>, success: string) {
+  async function run(
+    action: () => Promise<unknown>,
+    success: string | ((result: unknown) => string),
+  ) {
     setBusy(true);
     try {
-      await action();
+      const result = await action();
       await reload();
-      setMessage(success);
+      setMessage(typeof success === "string" ? success : success(result));
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Aktion fehlgeschlagen");
     } finally {
@@ -102,15 +133,86 @@ export function MediaWorkspace({ user }: Props) {
           Suche
           <input value={query} onChange={(event) => setQuery(event.target.value)} />
         </label>
-        <button disabled={busy} onClick={() => void reload()} type="button">
+        <label>
+          Status
+          <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
+            <option value="">Alle</option>
+            {[
+              "DRAFT",
+              "QUARANTINED",
+              "TECHNICAL_REVIEW",
+              "CONTENT_REVIEW",
+              "RIGHTS_REVIEW",
+              "CHANGES_REQUESTED",
+              "READY",
+              "ARCHIVED",
+              "DELETION_PENDING",
+            ].map((value) => (
+              <option key={value}>{value}</option>
+            ))}
+          </select>
+        </label>
+        <label>
+          Medientyp
+          <select
+            value={mediaTypeFilter}
+            onChange={(event) => setMediaTypeFilter(event.target.value)}
+          >
+            <option value="">Alle</option>
+            {["IMAGE", "DOCUMENT", "AUDIO", "VIDEO"].map((value) => (
+              <option key={value}>{value}</option>
+            ))}
+          </select>
+        </label>
+        <label>
+          Kategorie
+          <select
+            value={categoryFilter}
+            onChange={(event) => setCategoryFilter(event.target.value)}
+          >
+            <option value="">Alle</option>
+            {taxonomy.categories.map((item) => (
+              <option key={item.id} value={item.id}>
+                {item.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          Rechte
+          <select value={rightsFilter} onChange={(event) => setRightsFilter(event.target.value)}>
+            <option value="">Alle</option>
+            {["PENDING", "APPROVED", "REJECTED", "EXPIRED", "CONFLICT"].map((value) => (
+              <option key={value}>{value}</option>
+            ))}
+          </select>
+        </label>
+        <label>
+          Sortierung
+          <select value={sort} onChange={(event) => setSort(event.target.value)}>
+            <option value="updated_desc">Zuletzt geändert</option>
+            <option value="updated_asc">Älteste Änderung</option>
+            <option value="created_desc">Neueste Uploads</option>
+            <option value="title_asc">Titel A–Z</option>
+          </select>
+        </label>
+        <button disabled={busy} onClick={() => void reload(1)} type="button">
           Suchen
+        </button>
+        <button
+          disabled={busy}
+          onClick={() => setViewMode(viewMode === "cards" ? "list" : "cards")}
+          type="button"
+        >
+          {viewMode === "cards" ? "Listenansicht" : "Kartenansicht"}
         </button>
       </div>
 
+      {canAdmin ? <TaxonomyPanel busy={busy} run={run} taxonomy={taxonomy} /> : null}
       {canWrite ? <UploadPanel busy={busy} run={run} /> : null}
 
       <div className="media-layout">
-        <div className="media-list" aria-label="Medienliste">
+        <div className={`media-list ${viewMode}`} aria-label="Medienliste">
           {items.map((item) => (
             <button
               className={detail?.id === item.id ? "media-row active" : "media-row"}
@@ -127,6 +229,25 @@ export function MediaWorkspace({ user }: Props) {
             </button>
           ))}
           {items.length === 0 ? <p>Keine Medien gefunden.</p> : null}
+          <div className="media-pagination">
+            <button
+              disabled={busy || page <= 1}
+              onClick={() => void reload(page - 1)}
+              type="button"
+            >
+              Zurück
+            </button>
+            <span>
+              Seite {page} von {Math.max(1, Math.ceil(total / MEDIA_PAGE_SIZE))}
+            </span>
+            <button
+              disabled={busy || page >= Math.ceil(total / MEDIA_PAGE_SIZE)}
+              onClick={() => void reload(page + 1)}
+              type="button"
+            >
+              Weiter
+            </button>
+          </div>
         </div>
         {detail ? (
           <MediaDetail
@@ -155,17 +276,37 @@ function UploadPanel({ busy, run }: { busy: boolean; run: RunAction }) {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [file, setFile] = useState<File | null>(null);
+  const [progress, setProgress] = useState(0);
+  const [controller, setController] = useState<AbortController | null>(null);
 
-  function submit(event: FormEvent<HTMLFormElement>) {
+  async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!file) return;
-    void run(async () => {
-      const result = await uploadMediaAsset(title, description, file);
-      setTitle("");
-      setDescription("");
-      setFile(null);
-      return result;
-    }, "Upload gespeichert und technische Prüfung eingeplant");
+    const uploadController = new AbortController();
+    setController(uploadController);
+    setProgress(0);
+    try {
+      await run(
+        async () => {
+          const result = await uploadMediaAsset(title, description, file, {
+            onProgress: setProgress,
+            signal: uploadController.signal,
+          });
+          setTitle("");
+          setDescription("");
+          setFile(null);
+          return result;
+        },
+        (result) => {
+          const upload = result as { duplicate_binary: boolean; quarantined: boolean };
+          if (upload.quarantined) return "Upload gespeichert und zur Quarantäneprüfung markiert";
+          if (upload.duplicate_binary) return "Upload gespeichert; Binärduplikat ohne Doppelablage";
+          return "Upload gespeichert und technische Prüfung eingeplant";
+        },
+      );
+    } finally {
+      setController(null);
+    }
   }
 
   return (
@@ -190,11 +331,103 @@ function UploadPanel({ busy, run }: { busy: boolean; run: RunAction }) {
       <button disabled={busy || !file} type="submit">
         Privat hochladen
       </button>
+      {controller ? (
+        <button onClick={() => controller.abort()} type="button">
+          Upload abbrechen
+        </button>
+      ) : null}
+      <progress max={100} value={progress}>
+        {progress}%
+      </progress>
     </form>
   );
 }
 
-type RunAction = (action: () => Promise<unknown>, success: string) => Promise<void>;
+type RunAction = (
+  action: () => Promise<unknown>,
+  success: string | ((result: unknown) => string),
+) => Promise<void>;
+
+function TaxonomyPanel({
+  busy,
+  run,
+  taxonomy,
+}: {
+  busy: boolean;
+  run: RunAction;
+  taxonomy: MediaTaxonomy;
+}) {
+  const [categoryName, setCategoryName] = useState("");
+  const [parentId, setParentId] = useState("");
+  const [tagName, setTagName] = useState("");
+  const [synonyms, setSynonyms] = useState("");
+  return (
+    <details className="detail-block">
+      <summary>Taxonomie verwalten</summary>
+      <div className="field-grid">
+        <input
+          placeholder="Kategorie"
+          value={categoryName}
+          onChange={(event) => setCategoryName(event.target.value)}
+        />
+        <select value={parentId} onChange={(event) => setParentId(event.target.value)}>
+          <option value="">Keine Oberkategorie</option>
+          {taxonomy.categories.map((item) => (
+            <option key={item.id} value={item.id}>
+              {item.name}
+            </option>
+          ))}
+        </select>
+        <button
+          disabled={busy || !categoryName}
+          onClick={() =>
+            void run(
+              () =>
+                mediaCommand("/api/v1/media-categories", {
+                  name: categoryName,
+                  slug: `${categoryName.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-${Date.now()}`,
+                  parent_id: parentId || null,
+                }),
+              "Kategorie angelegt",
+            )
+          }
+          type="button"
+        >
+          Kategorie anlegen
+        </button>
+        <input
+          placeholder="Schlagwort"
+          value={tagName}
+          onChange={(event) => setTagName(event.target.value)}
+        />
+        <input
+          placeholder="Synonyme, kommagetrennt"
+          value={synonyms}
+          onChange={(event) => setSynonyms(event.target.value)}
+        />
+        <button
+          disabled={busy || !tagName}
+          onClick={() =>
+            void run(
+              () =>
+                mediaCommand("/api/v1/media-tags", {
+                  name: tagName,
+                  synonyms: synonyms
+                    .split(",")
+                    .map((item) => item.trim())
+                    .filter(Boolean),
+                }),
+              "Schlagwort angelegt",
+            )
+          }
+          type="button"
+        >
+          Schlagwort anlegen
+        </button>
+      </div>
+    </details>
+  );
+}
 
 function MediaDetail({
   busy,
@@ -219,12 +452,18 @@ function MediaDetail({
 }) {
   const currentVersion = detail.versions.find((version) => version.is_current);
   const pendingApproval = detail.approvals.find((approval) => approval.status === "PENDING");
+  const pendingDeletion = detail.deletion_requests.find(
+    (request) => request.status === "REQUESTED",
+  );
   const [title, setTitle] = useState(detail.title);
   const [description, setDescription] = useState(detail.description ?? "");
   const [categoryId, setCategoryId] = useState(detail.category_id ?? "");
+  const [tagIds, setTagIds] = useState(detail.tags.map((tag) => tag.id));
   const [rightsHolder, setRightsHolder] = useState(detail.rights?.rights_holder ?? "");
   const [licenseType, setLicenseType] = useState(detail.rights?.license_type ?? "");
   const [usageEnd, setUsageEnd] = useState(detail.rights?.usage_end?.slice(0, 10) ?? "");
+  const [rightsRestrictions, setRightsRestrictions] = useState(detail.rights?.restrictions ?? "");
+  const [proofAssetId, setProofAssetId] = useState(detail.rights?.proof_media_asset_id ?? "");
   const [versionFile, setVersionFile] = useState<File | null>(null);
   const [versionReason, setVersionReason] = useState("");
   const [relationTarget, setRelationTarget] = useState("");
@@ -293,6 +532,25 @@ function MediaDetail({
                 onChange={(event) => setDescription(event.target.value)}
               />
             </label>
+            <fieldset>
+              <legend>Schlagwörter</legend>
+              {taxonomy.tags.map((tag) => (
+                <label key={tag.id}>
+                  <input
+                    checked={tagIds.includes(tag.id)}
+                    type="checkbox"
+                    onChange={(event) =>
+                      setTagIds((current) =>
+                        event.target.checked
+                          ? [...new Set([...current, tag.id])]
+                          : current.filter((id) => id !== tag.id),
+                      )
+                    }
+                  />
+                  {tag.name}
+                </label>
+              ))}
+            </fieldset>
           </div>
           <button
             disabled={busy}
@@ -306,7 +564,7 @@ function MediaDetail({
                       title,
                       description,
                       category_id: categoryId || null,
-                      tag_ids: detail.tags.map((tag) => tag.id),
+                      tag_ids: tagIds,
                       business_metadata: currentVersion?.business_metadata ?? {},
                       custom_metadata: {},
                     },
@@ -367,6 +625,18 @@ function MediaDetail({
             <a href={mediaFileUrl(detail.id, true, version.id)}>Download</a>
           </p>
         ))}
+        <details>
+          <summary>Technische Versionsstände vergleichen</summary>
+          {detail.versions.map((version) => (
+            <div key={`compare-${version.id}`}>
+              <strong>Version {version.version_number}</strong>
+              <p>
+                {version.mime_type} · {version.size_bytes} Bytes · {version.sha256}
+              </p>
+              <pre>{JSON.stringify(version.technical_metadata, null, 2)}</pre>
+            </div>
+          ))}
+        </details>
       </div>
 
       {canWrite ? (
@@ -392,6 +662,29 @@ function MediaDetail({
                 onChange={(event) => setUsageEnd(event.target.value)}
               />
             </label>
+            <label>
+              Einschränkungen
+              <textarea
+                value={rightsRestrictions}
+                onChange={(event) => setRightsRestrictions(event.target.value)}
+              />
+            </label>
+            <label>
+              Nachweisdokument
+              <select
+                value={proofAssetId}
+                onChange={(event) => setProofAssetId(event.target.value)}
+              >
+                <option value="">Kein Nachweis verknüpft</option>
+                {items
+                  .filter((item) => item.id !== detail.id)
+                  .map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.title}
+                    </option>
+                  ))}
+              </select>
+            </label>
           </div>
           <button
             disabled={busy || !rightsHolder || !licenseType}
@@ -411,6 +704,8 @@ function MediaDetail({
                       attribution_required: false,
                       editing_allowed: false,
                       redistribution_allowed: false,
+                      restrictions: rightsRestrictions || null,
+                      proof_media_asset_id: proofAssetId || null,
                     },
                     "PUT",
                   ),
@@ -591,22 +886,13 @@ function MediaDetail({
             Sammlung erstellen
           </button>
           {collections.map((collection) => (
-            <button
-              disabled={busy || collection.items.some((item) => item.asset_id === detail.id)}
+            <CollectionEditor
+              assetId={detail.id}
+              busy={busy}
+              collection={collection}
               key={collection.id}
-              onClick={() =>
-                void run(
-                  () =>
-                    mediaCommand(`/api/v1/media-collections/${collection.id}/items`, {
-                      asset_id: detail.id,
-                    }),
-                  "Medium zur Sammlung hinzugefügt",
-                )
-              }
-              type="button"
-            >
-              Zu {collection.name}
-            </button>
+              run={run}
+            />
           ))}
         </div>
       ) : null}
@@ -647,8 +933,23 @@ function MediaDetail({
             Löschung beantragen
           </button>
         ) : null}
-        {canAdmin ? (
-          <span>Löschfreigabe erfolgt ausschließlich für einen konkreten Antrag.</span>
+        {canAdmin && pendingDeletion ? (
+          <button
+            disabled={busy}
+            onClick={() =>
+              void run(
+                () =>
+                  mediaCommand(`/api/v1/media-assets/${detail.id}/deletion-approvals`, {
+                    request_id: pendingDeletion.id,
+                    reason: "Referenzen und Aufbewahrung geprüft",
+                  }),
+                "Löschung freigegeben und Worker-Prüfung eingeplant",
+              )
+            }
+            type="button"
+          >
+            Löschantrag freigeben
+          </button>
         ) : null}
       </div>
 
@@ -677,5 +978,125 @@ function MediaDetail({
         ))}
       </div>
     </article>
+  );
+}
+
+function CollectionEditor({
+  assetId,
+  busy,
+  collection,
+  run,
+}: {
+  assetId: string;
+  busy: boolean;
+  collection: MediaCollection;
+  run: RunAction;
+}) {
+  const [name, setName] = useState(collection.name);
+  const [description, setDescription] = useState(collection.description ?? "");
+  const orderedIds = [...collection.items]
+    .sort((left, right) => left.position - right.position)
+    .map((item) => item.asset_id);
+  const position = orderedIds.indexOf(assetId);
+  const isMember = position >= 0;
+  function move(delta: number) {
+    const nextPosition = position + delta;
+    if (position < 0 || nextPosition < 0 || nextPosition >= orderedIds.length) return;
+    const nextOrder = [...orderedIds];
+    const currentId = nextOrder[position];
+    const targetId = nextOrder[nextPosition];
+    if (currentId === undefined || targetId === undefined) return;
+    nextOrder[position] = targetId;
+    nextOrder[nextPosition] = currentId;
+    void run(
+      () =>
+        mediaCommand(
+          `/api/v1/media-collections/${collection.id}/order`,
+          {
+            asset_ids: nextOrder,
+          },
+          "PUT",
+        ),
+      "Sammlungsreihenfolge gespeichert",
+    );
+  }
+  return (
+    <div className="collection-editor">
+      <input value={name} onChange={(event) => setName(event.target.value)} />
+      <input
+        placeholder="Beschreibung"
+        value={description}
+        onChange={(event) => setDescription(event.target.value)}
+      />
+      <button
+        disabled={busy || !name}
+        onClick={() =>
+          void run(
+            () =>
+              mediaCommand(
+                `/api/v1/media-collections/${collection.id}`,
+                {
+                  name,
+                  description: description || null,
+                  visibility: collection.visibility,
+                  status: collection.status,
+                },
+                "PATCH",
+              ),
+            "Sammlung bearbeitet",
+          )
+        }
+        type="button"
+      >
+        Speichern
+      </button>
+      {!isMember ? (
+        <button
+          disabled={busy}
+          onClick={() =>
+            void run(
+              () =>
+                mediaCommand(`/api/v1/media-collections/${collection.id}/items`, {
+                  asset_id: assetId,
+                }),
+              "Medium zur Sammlung hinzugefügt",
+            )
+          }
+          type="button"
+        >
+          Hinzufügen
+        </button>
+      ) : (
+        <>
+          <button disabled={busy || position === 0} onClick={() => move(-1)} type="button">
+            Nach vorn
+          </button>
+          <button
+            disabled={busy || position === orderedIds.length - 1}
+            onClick={() => move(1)}
+            type="button"
+          >
+            Nach hinten
+          </button>
+          <button
+            disabled={busy}
+            onClick={() =>
+              void run(
+                () =>
+                  mediaCommand(
+                    `/api/v1/media-collections/${collection.id}/items/${assetId}`,
+                    {},
+                    "DELETE",
+                  ),
+                "Medium aus Sammlung entfernt",
+              )
+            }
+            type="button"
+          >
+            Entfernen
+          </button>
+        </>
+      )}
+    </div>
   );
 }

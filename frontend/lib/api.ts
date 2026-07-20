@@ -157,16 +157,39 @@ export function fetchExecution(orderId: string): Promise<ExecutionDetail> {
   return requestJson<ExecutionDetail>(`/api/v1/executions/${orderId}`);
 }
 
-export function fetchMediaAssets(
-  query = "",
-  page = 1,
-): Promise<{
+export type MediaAssetQuery = {
+  query?: string;
+  page?: number;
+  pageSize?: number;
+  status?: string;
+  mediaType?: string;
+  categoryId?: string;
+  tagId?: string;
+  rightsStatus?: string;
+  approvalStatus?: string;
+  archived?: string;
+  sort?: string;
+};
+
+export function fetchMediaAssets(filters: MediaAssetQuery = {}): Promise<{
   items: MediaAssetSummary[];
   page: number;
   page_size: number;
   total: number;
 }> {
-  const params = new URLSearchParams({ query, page: String(page), page_size: "24" });
+  const params = new URLSearchParams({
+    query: filters.query ?? "",
+    page: String(filters.page ?? 1),
+    page_size: String(filters.pageSize ?? 24),
+    sort: filters.sort ?? "updated_desc",
+  });
+  if (filters.status) params.set("media_status", filters.status);
+  if (filters.mediaType) params.set("media_type", filters.mediaType);
+  if (filters.categoryId) params.set("category_id", filters.categoryId);
+  if (filters.tagId) params.set("tag_id", filters.tagId);
+  if (filters.rightsStatus) params.set("rights_status", filters.rightsStatus);
+  if (filters.approvalStatus) params.set("approval_status", filters.approvalStatus);
+  if (filters.archived) params.set("archived", filters.archived);
   return requestJson(`/api/v1/media-assets?${params.toString()}`);
 }
 
@@ -186,6 +209,7 @@ export async function uploadMediaAsset(
   title: string,
   description: string,
   file: File,
+  options: { onProgress?: (percent: number) => void; signal?: AbortSignal } = {},
 ): Promise<{ asset_id: string; duplicate_binary: boolean; quarantined: boolean }> {
   const csrf = readCsrfCookie();
   if (!csrf) throw new Error("CSRF-Cookie fehlt");
@@ -193,24 +217,54 @@ export async function uploadMediaAsset(
   form.append("title", title);
   form.append("description", description);
   form.append("upload", file);
-  const response = await fetch(`${API_BASE_URL}/api/v1/media-assets`, {
-    method: "POST",
-    credentials: "include",
-    headers: {
-      "X-CSRF-Token": csrf,
-      "Idempotency-Key": crypto.randomUUID(),
-    },
-    body: form,
+  return new Promise((resolve, reject) => {
+    const request = new XMLHttpRequest();
+    request.open("POST", `${API_BASE_URL}/api/v1/media-assets`);
+    request.withCredentials = true;
+    request.setRequestHeader("X-CSRF-Token", csrf);
+    request.setRequestHeader("Idempotency-Key", crypto.randomUUID());
+    request.upload.onprogress = (event) => {
+      if (event.lengthComputable) {
+        options.onProgress?.(Math.round((event.loaded / event.total) * 100));
+      }
+    };
+    request.onerror = () => reject(new Error("Upload-Verbindung fehlgeschlagen"));
+    request.onabort = () => reject(new Error("Upload wurde abgebrochen"));
+    request.onload = () => {
+      let payload: {
+        message?: string;
+        asset_id?: string;
+        duplicate_binary?: boolean;
+        quarantined?: boolean;
+      } = {};
+      try {
+        payload = JSON.parse(request.responseText) as typeof payload;
+      } catch {
+        // A non-JSON error is still surfaced with the actual HTTP status below.
+      }
+      if (request.status < 200 || request.status >= 300) {
+        reject(new Error(payload.message ?? `Upload fehlgeschlagen: HTTP ${request.status}`));
+        return;
+      }
+      if (!payload.asset_id) {
+        reject(new Error("Upload-Antwort enthält keine Medien-ID"));
+        return;
+      }
+      resolve({
+        asset_id: payload.asset_id,
+        duplicate_binary: Boolean(payload.duplicate_binary),
+        quarantined: Boolean(payload.quarantined),
+      });
+    };
+    if (options.signal) {
+      if (options.signal.aborted) {
+        reject(new Error("Upload wurde abgebrochen"));
+        return;
+      }
+      options.signal.addEventListener("abort", () => request.abort(), { once: true });
+    }
+    request.send(form);
   });
-  if (!response.ok) {
-    const payload = (await response.json()) as { message?: string };
-    throw new Error(payload.message ?? `Upload fehlgeschlagen: HTTP ${response.status}`);
-  }
-  return (await response.json()) as {
-    asset_id: string;
-    duplicate_binary: boolean;
-    quarantined: boolean;
-  };
 }
 
 export async function uploadMediaVersion(

@@ -281,6 +281,15 @@ export type MediaAssetDetail = MediaAssetSummary & {
     reason: string | null;
     created_at: string;
   }>;
+  deletion_requests: Array<{
+    id: string;
+    requested_by: string;
+    approved_by: string | null;
+    reason: string;
+    status: string;
+    requested_at: string;
+    approved_at: string | null;
+  }>;
   audit: Array<{
     id: string;
     event_type: string;

@@ -123,6 +123,7 @@ async def mark_expired_rights() -> int:
 
 
 async def _verify(task: MediaTask, storage: ObjectStorage) -> None:
+    integrity_error: str | None = None
     async with get_session_factory()() as session, session.begin():
         version = await session.get(MediaVersion, task.media_version_id)
         if version is None:
@@ -140,31 +141,34 @@ async def _verify(task: MediaTask, storage: ObjectStorage) -> None:
             media_file.quarantined = True
             asset.technical_status = MediaTechnicalStatus.QUARANTINED
             asset.status = MediaStatus.QUARANTINED
-            raise ValueError("stored media integrity verification failed")
-        media_file.verification_status = MediaVerificationStatus.VERIFIED
-        media_file.storage_status = MediaStorageStatus.VERIFIED
-        media_file.last_integrity_check_at = datetime.now(UTC)
-        asset.storage_status = MediaStorageStatus.VERIFIED
-        if not media_file.quarantined:
-            asset.technical_status = MediaTechnicalStatus.VERIFIED
-            if asset.status == MediaStatus.TECHNICAL_REVIEW:
-                asset.status = MediaStatus.DRAFT
-        existing_preview = await session.scalar(
-            select(MediaVariant.id).where(
-                MediaVariant.source_version_id == version.id,
-                MediaVariant.variant_type == "PREVIEW",
-            )
-        )
-        if existing_preview is None:
-            session.add(
-                MediaTask(
-                    tenant_id=asset.tenant_id,
-                    media_asset_id=asset.id,
-                    media_version_id=version.id,
-                    task_type="REGISTER_PREVIEW",
-                    payload={"external_effect": False},
+            integrity_error = "stored media integrity verification failed"
+        else:
+            media_file.verification_status = MediaVerificationStatus.VERIFIED
+            media_file.storage_status = MediaStorageStatus.VERIFIED
+            media_file.last_integrity_check_at = datetime.now(UTC)
+            asset.storage_status = MediaStorageStatus.VERIFIED
+            if not media_file.quarantined:
+                asset.technical_status = MediaTechnicalStatus.VERIFIED
+                if asset.status == MediaStatus.TECHNICAL_REVIEW:
+                    asset.status = MediaStatus.DRAFT
+            existing_preview = await session.scalar(
+                select(MediaVariant.id).where(
+                    MediaVariant.source_version_id == version.id,
+                    MediaVariant.variant_type == "PREVIEW",
                 )
             )
+            if existing_preview is None:
+                session.add(
+                    MediaTask(
+                        tenant_id=asset.tenant_id,
+                        media_asset_id=asset.id,
+                        media_version_id=version.id,
+                        task_type="REGISTER_PREVIEW",
+                        payload={"external_effect": False},
+                    )
+                )
+    if integrity_error is not None:
+        raise ValueError(integrity_error)
 
 
 async def _register_preview(task: MediaTask) -> None:

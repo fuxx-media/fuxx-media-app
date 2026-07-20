@@ -29,6 +29,7 @@ ALLOWED_MIME_TYPES = {
 class ValidatedMedia:
     content: bytes
     sha256: str
+    claimed_mime_type: str | None
     detected_mime_type: str
     media_type: MediaType
     file_signature: str
@@ -65,6 +66,7 @@ def validate_media(
     return ValidatedMedia(
         content=content,
         sha256=hashlib.sha256(content).hexdigest(),
+        claimed_mime_type=normalized_claim or None,
         detected_mime_type=detected_mime,
         media_type=media_type,
         file_signature=signature,

@@ -8,7 +8,7 @@ from pathlib import PurePath
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import String, delete, func, or_, select, text, update
+from sqlalchemy import String, cast, delete, func, or_, select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from mediaos.application.errors import (
@@ -338,7 +338,7 @@ class MediaService:
                 or_(
                     MediaAsset.title.contains(needle, autoescape=True),
                     MediaAsset.description.contains(needle, autoescape=True),
-                    func.cast(MediaAsset.id, String).contains(needle, autoescape=True),
+                    cast(MediaAsset.id, String).contains(needle, autoescape=True),
                     MediaVersion.original_filename.contains(needle, autoescape=True),
                     MediaVersion.sha256.contains(needle, autoescape=True),
                 )
@@ -1093,7 +1093,11 @@ class MediaService:
             quarantined=upload.quarantined,
         )
         self.session.add(media_file)
-        await self.session.flush()
+        try:
+            await self.session.flush()
+        except Exception:
+            await self.storage.remove(bucket=bucket, object_key=object_key)
+            raise
         return media_file, False
 
     @staticmethod
@@ -1114,7 +1118,7 @@ class MediaService:
             media_file_id=media_file.id,
             filename=safe_name or f"media-{version_number}",
             original_filename=safe_name or f"media-{version_number}",
-            claimed_mime_type=None,
+            claimed_mime_type=upload.claimed_mime_type,
             detected_mime_type=upload.detected_mime_type,
             detected_media_type=upload.media_type,
             size_bytes=len(upload.content),

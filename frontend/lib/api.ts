@@ -10,6 +10,10 @@ import type {
   ExecutionSummary,
   ProviderConfiguration,
   ProviderListResponse,
+  MediaAssetDetail,
+  MediaAssetSummary,
+  MediaCollection,
+  MediaTaxonomy,
 } from "@/types/system";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
@@ -39,9 +43,10 @@ async function writeJsonWithHeaders<T>(
   body: unknown,
   csrfToken?: string,
   headers?: Record<string, string>,
+  method = "POST",
 ): Promise<T> {
   const response = await fetch(`${API_BASE_URL}${path}`, {
-    method: "POST",
+    method,
     credentials: "include",
     headers: {
       "Content-Type": "application/json",
@@ -150,4 +155,100 @@ export function fetchExecutions(): Promise<{ items: ExecutionSummary[] }> {
 
 export function fetchExecution(orderId: string): Promise<ExecutionDetail> {
   return requestJson<ExecutionDetail>(`/api/v1/executions/${orderId}`);
+}
+
+export function fetchMediaAssets(
+  query = "",
+  page = 1,
+): Promise<{
+  items: MediaAssetSummary[];
+  page: number;
+  page_size: number;
+  total: number;
+}> {
+  const params = new URLSearchParams({ query, page: String(page), page_size: "24" });
+  return requestJson(`/api/v1/media-assets?${params.toString()}`);
+}
+
+export function fetchMediaAsset(assetId: string): Promise<MediaAssetDetail> {
+  return requestJson<MediaAssetDetail>(`/api/v1/media-assets/${assetId}`);
+}
+
+export function fetchMediaTaxonomy(): Promise<MediaTaxonomy> {
+  return requestJson<MediaTaxonomy>("/api/v1/media-taxonomy");
+}
+
+export function fetchMediaCollections(): Promise<{ items: MediaCollection[] }> {
+  return requestJson<{ items: MediaCollection[] }>("/api/v1/media-collections");
+}
+
+export async function uploadMediaAsset(
+  title: string,
+  description: string,
+  file: File,
+): Promise<{ asset_id: string; duplicate_binary: boolean; quarantined: boolean }> {
+  const csrf = readCsrfCookie();
+  if (!csrf) throw new Error("CSRF-Cookie fehlt");
+  const form = new FormData();
+  form.append("title", title);
+  form.append("description", description);
+  form.append("upload", file);
+  const response = await fetch(`${API_BASE_URL}/api/v1/media-assets`, {
+    method: "POST",
+    credentials: "include",
+    headers: {
+      "X-CSRF-Token": csrf,
+      "Idempotency-Key": crypto.randomUUID(),
+    },
+    body: form,
+  });
+  if (!response.ok) {
+    const payload = (await response.json()) as { message?: string };
+    throw new Error(payload.message ?? `Upload fehlgeschlagen: HTTP ${response.status}`);
+  }
+  return (await response.json()) as {
+    asset_id: string;
+    duplicate_binary: boolean;
+    quarantined: boolean;
+  };
+}
+
+export async function uploadMediaVersion(
+  assetId: string,
+  revision: number,
+  reason: string,
+  file: File,
+): Promise<void> {
+  const csrf = readCsrfCookie();
+  if (!csrf) throw new Error("CSRF-Cookie fehlt");
+  const form = new FormData();
+  form.append("expected_revision", String(revision));
+  form.append("reason", reason);
+  form.append("upload", file);
+  const response = await fetch(`${API_BASE_URL}/api/v1/media-assets/${assetId}/versions`, {
+    method: "POST",
+    credentials: "include",
+    headers: {
+      "X-CSRF-Token": csrf,
+      "Idempotency-Key": crypto.randomUUID(),
+    },
+    body: form,
+  });
+  if (!response.ok) throw new Error(`Neue Version fehlgeschlagen: HTTP ${response.status}`);
+}
+
+export function mediaCommand<T>(
+  path: string,
+  body: unknown = {},
+  method: "POST" | "PUT" | "PATCH" | "DELETE" = "POST",
+): Promise<T> {
+  const csrf = readCsrfCookie();
+  if (!csrf) return Promise.reject(new Error("CSRF-Cookie fehlt"));
+  return writeJsonWithHeaders<T>(path, body, csrf, undefined, method);
+}
+
+export function mediaFileUrl(assetId: string, original = false, versionId?: string): string {
+  const suffix = original ? "download" : "preview";
+  const params = versionId ? `?version_id=${encodeURIComponent(versionId)}` : "";
+  return `${API_BASE_URL}/api/v1/media-assets/${assetId}/${suffix}${params}`;
 }

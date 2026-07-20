@@ -19,10 +19,16 @@ depends_on: str | Sequence[str] | None = None
 def _timestamps() -> tuple[sa.Column[object], sa.Column[object]]:
     return (
         sa.Column(
-            "created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False
+            "created_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
         ),
         sa.Column(
-            "updated_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False
+            "updated_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
         ),
     )
 
@@ -157,7 +163,9 @@ def upgrade() -> None:
         sa.Column("archived", sa.Boolean(), server_default="false", nullable=False),
         *_timestamps(),
         sa.Column("id", sa.UUID(), nullable=False),
-        sa.CheckConstraint("current_version_number >= 0", name="ck_media_asset_version_nonnegative"),
+        sa.CheckConstraint(
+            "current_version_number >= 0", name="ck_media_asset_version_nonnegative"
+        ),
         sa.CheckConstraint("revision >= 1", name="ck_media_asset_revision_positive"),
         sa.ForeignKeyConstraint(["tenant_id"], ["tenants.id"], ondelete="RESTRICT"),
         sa.ForeignKeyConstraint(["category_id"], ["media_categories.id"], ondelete="RESTRICT"),
@@ -242,7 +250,10 @@ def upgrade() -> None:
         sa.Column("size_bytes", sa.BigInteger(), nullable=False),
         sa.Column("sha256", sa.String(64), nullable=False),
         sa.Column(
-            "created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False
+            "created_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
         ),
         sa.Column("created_by", sa.UUID(), nullable=False),
         sa.Column("change_reason", sa.Text(), nullable=False),
@@ -306,7 +317,10 @@ def upgrade() -> None:
         ),
         sa.Column("generation_source", sa.String(100), nullable=False),
         sa.Column(
-            "created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False
+            "created_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
         ),
         sa.Column("verification_result", sa.JSON(), nullable=False),
         sa.Column("id", sa.UUID(), nullable=False),
@@ -337,7 +351,10 @@ def upgrade() -> None:
         ),
         sa.Column("created_by", sa.UUID(), nullable=False),
         sa.Column(
-            "created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False
+            "created_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
         ),
         sa.Column("id", sa.UUID(), nullable=False),
         sa.CheckConstraint("source_asset_id <> target_asset_id", name="ck_media_relation_not_self"),
@@ -367,9 +384,7 @@ def upgrade() -> None:
         sa.Column("proof_media_asset_id", sa.UUID()),
         sa.Column(
             "review_status",
-            _enum(
-                "rights_review_status", "PENDING", "APPROVED", "REJECTED", "EXPIRED", "CONFLICT"
-            ),
+            _enum("rights_review_status", "PENDING", "APPROVED", "REJECTED", "EXPIRED", "CONFLICT"),
             server_default="PENDING",
             nullable=False,
         ),
@@ -404,7 +419,10 @@ def upgrade() -> None:
         ),
         sa.Column("reason", sa.Text()),
         sa.Column(
-            "created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False
+            "created_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
         ),
         sa.Column("resolved_at", sa.DateTime(timezone=True)),
         sa.Column("id", sa.UUID(), nullable=False),
@@ -427,9 +445,7 @@ def upgrade() -> None:
             _enum("media_collection_visibility", "PRIVATE", "TENANT"),
             nullable=False,
         ),
-        sa.Column(
-            "status", _enum("media_collection_status", "ACTIVE", "ARCHIVED"), nullable=False
-        ),
+        sa.Column("status", _enum("media_collection_status", "ACTIVE", "ARCHIVED"), nullable=False),
         *_timestamps(),
         sa.Column("id", sa.UUID(), nullable=False),
         sa.ForeignKeyConstraint(["tenant_id"], ["tenants.id"], ondelete="CASCADE"),
@@ -444,7 +460,10 @@ def upgrade() -> None:
         sa.Column("position", sa.Integer(), nullable=False),
         sa.Column("added_by", sa.UUID(), nullable=False),
         sa.Column(
-            "created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False
+            "created_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
         ),
         sa.Column("id", sa.UUID(), nullable=False),
         sa.ForeignKeyConstraint(["collection_id"], ["media_collections.id"], ondelete="CASCADE"),
@@ -460,7 +479,10 @@ def upgrade() -> None:
         sa.Column("change_type", sa.String(100), nullable=False),
         sa.Column("snapshot", sa.JSON(), nullable=False),
         sa.Column(
-            "created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False
+            "created_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
         ),
         sa.Column("id", sa.UUID(), nullable=False),
         sa.ForeignKeyConstraint(["collection_id"], ["media_collections.id"], ondelete="CASCADE"),
@@ -475,7 +497,10 @@ def upgrade() -> None:
         sa.Column("reason", sa.Text(), nullable=False),
         sa.Column("status", sa.String(30), server_default="REQUESTED", nullable=False),
         sa.Column(
-            "requested_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False
+            "requested_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
         ),
         sa.Column("approved_at", sa.DateTime(timezone=True)),
         sa.Column("id", sa.UUID(), nullable=False),
@@ -492,7 +517,13 @@ def upgrade() -> None:
         sa.Column(
             "status",
             sa.Enum(
-                "PENDING", "RUNNING", "SUCCEEDED", "RETRY", "FAILED", name="task_status", create_type=False
+                "PENDING",
+                "RUNNING",
+                "SUCCEEDED",
+                "RETRY",
+                "FAILED",
+                name="task_status",
+                create_type=False,
             ),
             server_default="PENDING",
             nullable=False,
@@ -501,7 +532,10 @@ def upgrade() -> None:
         sa.Column("attempts", sa.Integer(), server_default="0", nullable=False),
         sa.Column("max_attempts", sa.Integer(), server_default="3", nullable=False),
         sa.Column(
-            "available_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False
+            "available_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
         ),
         sa.Column("locked_at", sa.DateTime(timezone=True)),
         sa.Column("locked_by", sa.String(200)),
@@ -514,9 +548,7 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("media_version_id", "task_type", name="uq_media_task_version_type"),
     )
-    op.create_index(
-        "ix_media_task_claim", "media_tasks", ["status", "available_at", "created_at"]
-    )
+    op.create_index("ix_media_task_claim", "media_tasks", ["status", "available_at", "created_at"])
 
 
 def downgrade() -> None:

@@ -33,6 +33,7 @@ class RoleName(StrEnum):
     ADMIN = "ADMIN"
     BACKOFFICE = "BACKOFFICE"
     REVIEWER = "REVIEWER"
+    READER = "READER"
     SYSTEM_WORKER = "SYSTEM_WORKER"
 
 
@@ -161,3 +162,109 @@ class ArtifactKind(StrEnum):
     AUDIO = "AUDIO"
     VIDEO = "VIDEO"
     OTHER = "OTHER"
+
+
+class MediaType(StrEnum):
+    IMAGE = "IMAGE"
+    VIDEO = "VIDEO"
+    AUDIO = "AUDIO"
+    DOCUMENT = "DOCUMENT"
+    GRAPHIC = "GRAPHIC"
+    SUBTITLE = "SUBTITLE"
+    PREVIEW = "PREVIEW"
+    OTHER = "OTHER"
+
+
+class MediaStatus(StrEnum):
+    DRAFT = "DRAFT"
+    UPLOADING = "UPLOADING"
+    QUARANTINED = "QUARANTINED"
+    TECHNICAL_REVIEW = "TECHNICAL_REVIEW"
+    CONTENT_REVIEW = "CONTENT_REVIEW"
+    RIGHTS_REVIEW = "RIGHTS_REVIEW"
+    CHANGES_REQUESTED = "CHANGES_REQUESTED"
+    APPROVED = "APPROVED"
+    READY = "READY"
+    ARCHIVED = "ARCHIVED"
+    REJECTED = "REJECTED"
+    DELETION_PENDING = "DELETION_PENDING"
+    DELETED = "DELETED"
+
+
+class RetentionStatus(StrEnum):
+    ACTIVE = "ACTIVE"
+    ARCHIVED = "ARCHIVED"
+    RETENTION_HOLD = "RETENTION_HOLD"
+    DELETION_REQUESTED = "DELETION_REQUESTED"
+    DELETION_APPROVED = "DELETION_APPROVED"
+    DELETED_LOGICALLY = "DELETED_LOGICALLY"
+    PURGED = "PURGED"
+
+
+class ConfidentialityClass(StrEnum):
+    INTERNAL = "INTERNAL"
+    CONFIDENTIAL = "CONFIDENTIAL"
+    RESTRICTED = "RESTRICTED"
+
+
+class MediaTechnicalStatus(StrEnum):
+    PENDING = "PENDING"
+    VERIFIED = "VERIFIED"
+    QUARANTINED = "QUARANTINED"
+    FAILED = "FAILED"
+
+
+class MediaApprovalStatus(StrEnum):
+    NOT_REQUESTED = "NOT_REQUESTED"
+    PENDING = "PENDING"
+    APPROVED = "APPROVED"
+    REJECTED = "REJECTED"
+    INVALIDATED = "INVALIDATED"
+
+
+class MediaStorageStatus(StrEnum):
+    PENDING = "PENDING"
+    STORED = "STORED"
+    VERIFIED = "VERIFIED"
+    DELETED = "DELETED"
+
+
+class MediaVerificationStatus(StrEnum):
+    PENDING = "PENDING"
+    VERIFIED = "VERIFIED"
+    REJECTED = "REJECTED"
+
+
+class MediaVariantStatus(StrEnum):
+    REGISTERED = "REGISTERED"
+    READY = "READY"
+    FAILED = "FAILED"
+
+
+class MediaRelationType(StrEnum):
+    BELONGS_TO = "BELONGS_TO"
+    REPLACES = "REPLACES"
+    DERIVED_FROM = "DERIVED_FROM"
+    PREVIEW_OF = "PREVIEW_OF"
+    PART_OF = "PART_OF"
+    LANGUAGE_VARIANT_OF = "LANGUAGE_VARIANT_OF"
+    LINKED_WITH = "LINKED_WITH"
+    DUPLICATE_OF = "DUPLICATE_OF"
+
+
+class RightsReviewStatus(StrEnum):
+    PENDING = "PENDING"
+    APPROVED = "APPROVED"
+    REJECTED = "REJECTED"
+    EXPIRED = "EXPIRED"
+    CONFLICT = "CONFLICT"
+
+
+class MediaCollectionVisibility(StrEnum):
+    PRIVATE = "PRIVATE"
+    TENANT = "TENANT"
+
+
+class MediaCollectionStatus(StrEnum):
+    ACTIVE = "ACTIVE"
+    ARCHIVED = "ARCHIVED"

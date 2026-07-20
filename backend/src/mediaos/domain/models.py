@@ -39,7 +39,20 @@ from mediaos.domain.enums import (
     OutboxStatus,
     ProviderCallStatus,
     ProviderErrorClassification,
+    ConfidentialityClass,
+    MediaApprovalStatus,
+    MediaCollectionStatus,
+    MediaCollectionVisibility,
+    MediaRelationType,
+    MediaStatus,
+    MediaStorageStatus,
+    MediaTechnicalStatus,
+    MediaType,
+    MediaVariantStatus,
+    MediaVerificationStatus,
+    RetentionStatus,
     RetryPlanStatus,
+    RightsReviewStatus,
     RoleName,
     SimulationScenario,
     TaskStatus,
@@ -256,6 +269,9 @@ class AuditEvent(IdentityMixin, Base):
     )
     job_id: Mapped[UUID | None] = mapped_column(
         PGUUID(as_uuid=True), ForeignKey("content_jobs.id", ondelete="SET NULL"), index=True
+    )
+    media_asset_id: Mapped[UUID | None] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("media_assets.id", ondelete="SET NULL"), index=True
     )
     actor_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
     actor_type: Mapped[ActorType] = mapped_column(
@@ -1020,6 +1036,418 @@ class Artifact(IdentityMixin, Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
+
+
+class MediaCategory(IdentityMixin, TimestampMixin, Base):
+    __tablename__ = "media_categories"
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "slug", name="uq_media_category_tenant_slug"),
+    )
+
+    tenant_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    parent_id: Mapped[UUID | None] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("media_categories.id", ondelete="RESTRICT")
+    )
+    name: Mapped[str] = mapped_column(String(150), nullable=False)
+    slug: Mapped[str] = mapped_column(String(150), nullable=False)
+    active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, server_default="true")
+
+
+class MediaTag(IdentityMixin, TimestampMixin, Base):
+    __tablename__ = "media_tags"
+    __table_args__ = (UniqueConstraint("tenant_id", "name", name="uq_media_tag_tenant_name"),)
+
+    tenant_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    name: Mapped[str] = mapped_column(String(100), nullable=False)
+    synonyms: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
+    active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, server_default="true")
+
+
+class MediaAsset(IdentityMixin, TimestampMixin, Base):
+    __tablename__ = "media_assets"
+    __table_args__ = (
+        Index("ix_media_asset_tenant_status_updated", "tenant_id", "status", "updated_at"),
+        CheckConstraint("current_version_number >= 0", name="ck_media_asset_version_nonnegative"),
+        CheckConstraint("revision >= 1", name="ck_media_asset_revision_positive"),
+    )
+
+    tenant_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("tenants.id", ondelete="RESTRICT"), nullable=False, index=True
+    )
+    title: Mapped[str] = mapped_column(String(300), nullable=False)
+    description: Mapped[str | None] = mapped_column(Text)
+    media_type: Mapped[MediaType] = mapped_column(
+        Enum(MediaType, name="media_type", native_enum=False), nullable=False
+    )
+    category_id: Mapped[UUID | None] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("media_categories.id", ondelete="RESTRICT")
+    )
+    status: Mapped[MediaStatus] = mapped_column(
+        Enum(MediaStatus, name="media_status", native_enum=False),
+        nullable=False,
+        default=MediaStatus.DRAFT,
+        server_default=MediaStatus.DRAFT.value,
+    )
+    technical_status: Mapped[MediaTechnicalStatus] = mapped_column(
+        Enum(MediaTechnicalStatus, name="media_technical_status", native_enum=False),
+        nullable=False,
+        default=MediaTechnicalStatus.PENDING,
+        server_default=MediaTechnicalStatus.PENDING.value,
+    )
+    approval_status: Mapped[MediaApprovalStatus] = mapped_column(
+        Enum(MediaApprovalStatus, name="media_approval_status", native_enum=False),
+        nullable=False,
+        default=MediaApprovalStatus.NOT_REQUESTED,
+        server_default=MediaApprovalStatus.NOT_REQUESTED.value,
+    )
+    storage_status: Mapped[MediaStorageStatus] = mapped_column(
+        Enum(MediaStorageStatus, name="media_storage_status", native_enum=False),
+        nullable=False,
+        default=MediaStorageStatus.PENDING,
+        server_default=MediaStorageStatus.PENDING.value,
+    )
+    current_version_number: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default="0"
+    )
+    revision: Mapped[int] = mapped_column(Integer, nullable=False, default=1, server_default="1")
+    created_by: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
+    assigned_to: Mapped[UUID | None] = mapped_column(PGUUID(as_uuid=True))
+    retention_status: Mapped[RetentionStatus] = mapped_column(
+        Enum(RetentionStatus, name="retention_status", native_enum=False),
+        nullable=False,
+        default=RetentionStatus.ACTIVE,
+        server_default=RetentionStatus.ACTIVE.value,
+    )
+    confidentiality: Mapped[ConfidentialityClass] = mapped_column(
+        Enum(ConfidentialityClass, name="confidentiality_class", native_enum=False),
+        nullable=False,
+        default=ConfidentialityClass.INTERNAL,
+        server_default=ConfidentialityClass.INTERNAL.value,
+    )
+    deletion_locked: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="false"
+    )
+    archived: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
+
+
+class MediaFile(IdentityMixin, Base):
+    __tablename__ = "media_files"
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "sha256", "size_bytes", name="uq_media_file_binary"),
+        UniqueConstraint("bucket", "object_key", name="uq_media_file_object"),
+        CheckConstraint("size_bytes > 0", name="ck_media_file_size_positive"),
+    )
+
+    tenant_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("tenants.id", ondelete="RESTRICT"), nullable=False, index=True
+    )
+    created_by: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
+    bucket: Mapped[str] = mapped_column(String(100), nullable=False)
+    object_key: Mapped[str] = mapped_column(String(500), nullable=False)
+    size_bytes: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    detected_mime_type: Mapped[str] = mapped_column(String(100), nullable=False)
+    file_signature: Mapped[str] = mapped_column(String(100), nullable=False)
+    upload_status: Mapped[str] = mapped_column(String(30), nullable=False, default="COMPLETED")
+    verification_status: Mapped[MediaVerificationStatus] = mapped_column(
+        Enum(MediaVerificationStatus, name="media_verification_status", native_enum=False),
+        nullable=False,
+        default=MediaVerificationStatus.VERIFIED,
+        server_default=MediaVerificationStatus.VERIFIED.value,
+    )
+    storage_status: Mapped[MediaStorageStatus] = mapped_column(
+        Enum(MediaStorageStatus, name="media_storage_status", native_enum=False),
+        nullable=False,
+        default=MediaStorageStatus.STORED,
+        server_default=MediaStorageStatus.STORED.value,
+    )
+    stored_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    last_integrity_check_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    quarantined: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="false"
+    )
+
+
+class MediaVersion(IdentityMixin, Base):
+    __tablename__ = "media_versions"
+    __table_args__ = (
+        UniqueConstraint("media_asset_id", "version_number", name="uq_media_version_number"),
+        Index("ix_media_version_asset_current", "media_asset_id", "is_current"),
+    )
+
+    media_asset_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("media_assets.id", ondelete="RESTRICT"), nullable=False
+    )
+    version_number: Mapped[int] = mapped_column(Integer, nullable=False)
+    media_file_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("media_files.id", ondelete="RESTRICT"), nullable=False
+    )
+    filename: Mapped[str] = mapped_column(String(255), nullable=False)
+    original_filename: Mapped[str] = mapped_column(String(255), nullable=False)
+    claimed_mime_type: Mapped[str | None] = mapped_column(String(100))
+    detected_mime_type: Mapped[str] = mapped_column(String(100), nullable=False)
+    detected_media_type: Mapped[MediaType] = mapped_column(
+        Enum(MediaType, name="media_type", native_enum=False), nullable=False
+    )
+    size_bytes: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    created_by: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
+    change_reason: Mapped[str] = mapped_column(Text, nullable=False)
+    technical_results: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
+    approval_status: Mapped[MediaApprovalStatus] = mapped_column(
+        Enum(MediaApprovalStatus, name="media_approval_status", native_enum=False),
+        nullable=False,
+        default=MediaApprovalStatus.NOT_REQUESTED,
+        server_default=MediaApprovalStatus.NOT_REQUESTED.value,
+    )
+    is_current: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, server_default="true")
+    superseded_by_id: Mapped[UUID | None] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("media_versions.id", ondelete="RESTRICT")
+    )
+
+
+class MediaMetadata(IdentityMixin, TimestampMixin, Base):
+    __tablename__ = "media_metadata"
+    __table_args__ = (UniqueConstraint("media_version_id", name="uq_media_metadata_version"),)
+
+    media_version_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("media_versions.id", ondelete="CASCADE"), nullable=False
+    )
+    technical: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
+    business: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
+    custom: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
+    system_generated: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
+
+
+class MediaAssetTag(Base):
+    __tablename__ = "media_asset_tags"
+
+    media_asset_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("media_assets.id", ondelete="CASCADE"), primary_key=True
+    )
+    tag_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("media_tags.id", ondelete="RESTRICT"), primary_key=True
+    )
+
+
+class MediaVariant(IdentityMixin, Base):
+    __tablename__ = "media_variants"
+    __table_args__ = (
+        UniqueConstraint("source_version_id", "variant_type", name="uq_media_variant_type"),
+    )
+
+    source_version_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("media_versions.id", ondelete="CASCADE"), nullable=False
+    )
+    variant_type: Mapped[str] = mapped_column(String(80), nullable=False)
+    technical_properties: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
+    media_file_id: Mapped[UUID | None] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("media_files.id", ondelete="RESTRICT")
+    )
+    generation_status: Mapped[MediaVariantStatus] = mapped_column(
+        Enum(MediaVariantStatus, name="media_variant_status", native_enum=False), nullable=False
+    )
+    generation_source: Mapped[str] = mapped_column(String(100), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    verification_result: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
+
+
+class MediaRelation(IdentityMixin, Base):
+    __tablename__ = "media_relations"
+    __table_args__ = (
+        UniqueConstraint("source_asset_id", "target_asset_id", "relation_type", name="uq_media_relation"),
+        CheckConstraint("source_asset_id <> target_asset_id", name="ck_media_relation_not_self"),
+    )
+
+    tenant_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    source_asset_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("media_assets.id", ondelete="RESTRICT"), nullable=False
+    )
+    target_asset_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("media_assets.id", ondelete="RESTRICT"), nullable=False
+    )
+    relation_type: Mapped[MediaRelationType] = mapped_column(
+        Enum(MediaRelationType, name="media_relation_type", native_enum=False), nullable=False
+    )
+    created_by: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+
+class MediaRights(IdentityMixin, TimestampMixin, Base):
+    __tablename__ = "media_rights"
+    __table_args__ = (UniqueConstraint("media_asset_id", name="uq_media_rights_asset"),)
+
+    media_asset_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("media_assets.id", ondelete="CASCADE"), nullable=False
+    )
+    rights_holder: Mapped[str] = mapped_column(String(300), nullable=False)
+    license_type: Mapped[str] = mapped_column(String(150), nullable=False)
+    usage_start: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    usage_end: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    allowed_uses: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
+    allowed_regions: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
+    allowed_channels: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
+    attribution_required: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    editing_allowed: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    redistribution_allowed: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    restrictions: Mapped[str | None] = mapped_column(Text)
+    proof_media_asset_id: Mapped[UUID | None] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("media_assets.id", ondelete="RESTRICT")
+    )
+    review_status: Mapped[RightsReviewStatus] = mapped_column(
+        Enum(RightsReviewStatus, name="rights_review_status", native_enum=False),
+        nullable=False,
+        default=RightsReviewStatus.PENDING,
+        server_default=RightsReviewStatus.PENDING.value,
+    )
+    reviewed_by: Mapped[UUID | None] = mapped_column(PGUUID(as_uuid=True))
+    review_reason: Mapped[str | None] = mapped_column(Text)
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class MediaApproval(IdentityMixin, Base):
+    __tablename__ = "media_approvals"
+    __table_args__ = (Index("ix_media_approval_version_status", "media_version_id", "status"),)
+
+    tenant_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False
+    )
+    media_asset_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("media_assets.id", ondelete="CASCADE"), nullable=False
+    )
+    media_version_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("media_versions.id", ondelete="CASCADE"), nullable=False
+    )
+    requested_by: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
+    resolved_by: Mapped[UUID | None] = mapped_column(PGUUID(as_uuid=True))
+    status: Mapped[MediaApprovalStatus] = mapped_column(
+        Enum(MediaApprovalStatus, name="media_approval_status", native_enum=False), nullable=False
+    )
+    reason: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class MediaCollection(IdentityMixin, TimestampMixin, Base):
+    __tablename__ = "media_collections"
+    __table_args__ = (UniqueConstraint("tenant_id", "name", name="uq_media_collection_name"),)
+
+    tenant_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    name: Mapped[str] = mapped_column(String(200), nullable=False)
+    description: Mapped[str | None] = mapped_column(Text)
+    owner_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
+    visibility: Mapped[MediaCollectionVisibility] = mapped_column(
+        Enum(MediaCollectionVisibility, name="media_collection_visibility", native_enum=False), nullable=False
+    )
+    status: Mapped[MediaCollectionStatus] = mapped_column(
+        Enum(MediaCollectionStatus, name="media_collection_status", native_enum=False), nullable=False
+    )
+
+
+class MediaCollectionItem(IdentityMixin, Base):
+    __tablename__ = "media_collection_items"
+    __table_args__ = (
+        UniqueConstraint("collection_id", "media_asset_id", name="uq_media_collection_item"),
+        UniqueConstraint("collection_id", "position", name="uq_media_collection_position"),
+    )
+
+    collection_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("media_collections.id", ondelete="CASCADE"), nullable=False
+    )
+    media_asset_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("media_assets.id", ondelete="RESTRICT"), nullable=False
+    )
+    position: Mapped[int] = mapped_column(Integer, nullable=False)
+    added_by: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+
+class MediaCollectionHistory(IdentityMixin, Base):
+    __tablename__ = "media_collection_history"
+
+    collection_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("media_collections.id", ondelete="CASCADE"), nullable=False
+    )
+    actor_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
+    change_type: Mapped[str] = mapped_column(String(100), nullable=False)
+    snapshot: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+
+class MediaDeletionRequest(IdentityMixin, Base):
+    __tablename__ = "media_deletion_requests"
+
+    tenant_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False
+    )
+    media_asset_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("media_assets.id", ondelete="RESTRICT"), nullable=False
+    )
+    requested_by: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
+    approved_by: Mapped[UUID | None] = mapped_column(PGUUID(as_uuid=True))
+    reason: Mapped[str] = mapped_column(Text, nullable=False)
+    status: Mapped[str] = mapped_column(String(30), nullable=False, default="REQUESTED")
+    requested_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    approved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class MediaTask(IdentityMixin, TimestampMixin, Base):
+    __tablename__ = "media_tasks"
+    __table_args__ = (
+        UniqueConstraint("media_version_id", "task_type", name="uq_media_task_version_type"),
+        Index("ix_media_task_claim", "status", "available_at", "created_at"),
+    )
+
+    tenant_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False
+    )
+    media_asset_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("media_assets.id", ondelete="CASCADE"), nullable=False
+    )
+    media_version_id: Mapped[UUID | None] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("media_versions.id", ondelete="CASCADE")
+    )
+    task_type: Mapped[str] = mapped_column(String(100), nullable=False)
+    status: Mapped[TaskStatus] = mapped_column(
+        Enum(TaskStatus, name="task_status", create_type=False),
+        nullable=False,
+        default=TaskStatus.PENDING,
+        server_default=TaskStatus.PENDING.value,
+    )
+    payload: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
+    attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+    max_attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=3, server_default="3")
+    available_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    locked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    locked_by: Mapped[str | None] = mapped_column(String(200))
+    last_error: Mapped[str | None] = mapped_column(Text)
 
 
 def _reject_audit_mutation(*_: object) -> None:

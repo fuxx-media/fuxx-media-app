@@ -322,7 +322,10 @@ async def create_media_relation(
     actor: Annotated[Actor, Depends(require_write_actor)],
 ) -> dict[str, Any]:
     item = await MediaService(session).add_relation(
-        actor=actor, source_id=asset_id, **body.model_dump()
+        actor=actor,
+        source_id=asset_id,
+        target_id=body.target_asset_id,
+        relation_type=body.relation_type,
     )
     return {"id": str(item.id), "relation_type": item.relation_type.value}
 

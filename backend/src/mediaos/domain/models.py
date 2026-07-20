@@ -23,6 +23,7 @@ from sqlalchemy import (
     func,
     text,
 )
+from sqlalchemy.dialects.postgresql import ENUM as PGEnum
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
@@ -1460,7 +1461,7 @@ class MediaTask(IdentityMixin, TimestampMixin, Base):
     )
     task_type: Mapped[str] = mapped_column(String(100), nullable=False)
     status: Mapped[TaskStatus] = mapped_column(
-        Enum(TaskStatus, name="task_status", create_type=False),
+        PGEnum(TaskStatus, name="task_status", create_type=False),
         nullable=False,
         default=TaskStatus.PENDING,
         server_default=TaskStatus.PENDING.value,

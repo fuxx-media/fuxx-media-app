@@ -9,6 +9,7 @@ from collections.abc import Sequence
 
 import sqlalchemy as sa
 from alembic import op
+from sqlalchemy.dialects.postgresql import ENUM as PGEnum
 
 revision: str = "d7e8f9a0b1c2"
 down_revision: str | None = "c6f7a8b9d0e1"
@@ -516,7 +517,7 @@ def upgrade() -> None:
         sa.Column("task_type", sa.String(100), nullable=False),
         sa.Column(
             "status",
-            sa.Enum(
+            PGEnum(
                 "PENDING",
                 "RUNNING",
                 "SUCCEEDED",

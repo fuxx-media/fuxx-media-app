@@ -47,6 +47,23 @@ def wav() -> bytes:
     return output.getvalue()
 
 
+def mp4(width: int = 1920, height: int = 1080) -> bytes:
+    def box(kind: bytes, payload: bytes) -> bytes:
+        return (len(payload) + 8).to_bytes(4, "big") + kind + payload
+
+    ftyp = box(b"ftyp", b"isom\x00\x00\x02\x00isomiso2")
+    mvhd = box(
+        b"mvhd",
+        b"\x00\x00\x00\x00" + b"\x00" * 8 + (1000).to_bytes(4, "big") + (2500).to_bytes(4, "big"),
+    )
+    tkhd = box(
+        b"tkhd",
+        b"\x00" * 24 + (width << 16).to_bytes(4, "big") + (height << 16).to_bytes(4, "big"),
+    )
+    video_track = box(b"trak", tkhd + box(b"mdia", b"vide" + box(b"stsd", b"avc1")))
+    return ftyp + box(b"moov", mvhd + video_track) + box(b"mdat", b"\x00")
+
+
 def test_image_signatures_and_metadata() -> None:
     cases = [
         (png(), "image/png", "image.png"),
@@ -94,7 +111,7 @@ def test_pdf_audio_and_video_metadata() -> None:
         max_bytes=10000,
     )
     assert mp3.technical_metadata["codec"] == "MP3"
-    mp4_content = b"\x00\x00\x00\x18ftypisom\x00\x00\x02\x00isomiso2"
+    mp4_content = mp4()
     video = validate_media(
         mp4_content,
         claimed_mime_type="video/mp4",
@@ -103,6 +120,10 @@ def test_pdf_audio_and_video_metadata() -> None:
     )
     assert video.media_type == MediaType.VIDEO
     assert video.technical_metadata["container"] == "MP4"
+    assert video.technical_metadata["duration_seconds"] == 2.5
+    assert video.technical_metadata["width"] == 1920
+    assert video.technical_metadata["height"] == 1080
+    assert video.technical_metadata["codec"] == "H.264/AVC"
 
 
 def test_empty_size_unknown_and_invalid_structures_are_blocked() -> None:
@@ -122,6 +143,20 @@ def test_empty_size_unknown_and_invalid_structures_are_blocked() -> None:
             b"\x89PNG\r\n\x1a\n",
             claimed_mime_type="image/png",
             original_filename="x.png",
+            max_bytes=100,
+        )
+    with pytest.raises(UploadValidationError, match="PDF upload is incomplete"):
+        validate_media(
+            b"%PDF-1.7\n1 0 obj<</Type /Page>>endobj",
+            claimed_mime_type="application/pdf",
+            original_filename="x.pdf",
+            max_bytes=100,
+        )
+    with pytest.raises(UploadValidationError, match="MP4 upload is incomplete"):
+        validate_media(
+            b"\x00\x00\x00\x18ftypisom\x00\x00\x02\x00isomiso2",
+            claimed_mime_type="video/mp4",
+            original_filename="x.mp4",
             max_bytes=100,
         )
 

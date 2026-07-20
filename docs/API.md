@@ -91,14 +91,17 @@ event. Re-playable creates additionally require `Idempotency-Key`.
 | POST | `/media-assets/{id}/versions` | immutable new version with idempotency |
 | GET | `/media-assets/{id}/preview` | authenticated inline preview with optional Range |
 | GET | `/media-assets/{id}/download` | authorized audited original download |
-| POST | `/media-categories`, `/media-tags` | Admin taxonomy maintenance |
+| GET | `/media-taxonomy` | active and inactive tenant taxonomy |
+| POST/PATCH | `/media-categories`, `/media-categories/{id}` | Admin taxonomy creation / activation |
+| POST/PATCH | `/media-tags`, `/media-tags/{id}` | taxonomy creation / Admin activation |
 | POST | `/media-assets/{id}/relations`, `/variants` | cycle-safe relation / variant registration |
 | PUT/POST | `/media-assets/{id}/rights`, `/rights/review` | rights record and reasoned review |
-| POST | `/media-assets/{id}/approval-requests`, `/media-approvals/{id}/resolve` | version-bound human approval |
+| POST | `/media-assets/{id}/approvals`, `/approvals/{approval_id}/resolve` | version-bound human approval |
 | POST | `/media-assets/{id}/archive`, `/deletion-requests` | retention lifecycle |
-| POST | `/media-deletion-requests/{id}/approve` | Admin-only physical purge gate |
+| POST | `/media-assets/{id}/deletion-approvals` | Admin-only physical purge gate |
 | GET/POST | `/media-collections` | internal collections |
-| POST | `/media-collections/{id}/items`, `/order` | tenant-safe membership and order history |
+| PATCH | `/media-collections/{id}` | optimistic collection metadata update |
+| POST/PUT/DELETE | `/media-collections/{id}/items`, `/order`, `/items/{asset_id}` | tenant-safe membership, ordering and immutable history |
 
 The list is limited to 100 rows per page and supports stable ordering and filters. Readers receive
 only `READY` media. The API never returns MinIO credentials, bucket policies, direct object URLs or

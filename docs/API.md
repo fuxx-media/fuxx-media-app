@@ -77,3 +77,29 @@ assignee and search filters. All tenant identity comes from the server session.
 Dry-runs persist the same masked preparation payload without creating an outbox or external effect.
 Simulation executions create the order and outbox atomically and are the only enabled adapter path.
 API responses expose secret-reference metadata but never resolved secret values.
+
+## Hauptblock 6 media library
+
+All mutations below require an authenticated database session, matching CSRF cookie/header, a
+server-derived tenant, an allowed role, an expected aggregate revision where applicable and an audit
+event. Re-playable creates additionally require `Idempotency-Key`.
+
+| Method | Path | Protection / purpose |
+|---|---|---|
+| GET/POST | `/media-assets` | paginated tenant search / Admin or Backoffice private upload |
+| GET/PATCH | `/media-assets/{id}` | detail, versions, rights, variants, relations, audit / optimistic update |
+| POST | `/media-assets/{id}/versions` | immutable new version with idempotency |
+| GET | `/media-assets/{id}/preview` | authenticated inline preview with optional Range |
+| GET | `/media-assets/{id}/download` | authorized audited original download |
+| POST | `/media-categories`, `/media-tags` | Admin taxonomy maintenance |
+| POST | `/media-assets/{id}/relations`, `/variants` | cycle-safe relation / variant registration |
+| PUT/POST | `/media-assets/{id}/rights`, `/rights/review` | rights record and reasoned review |
+| POST | `/media-assets/{id}/approval-requests`, `/media-approvals/{id}/resolve` | version-bound human approval |
+| POST | `/media-assets/{id}/archive`, `/deletion-requests` | retention lifecycle |
+| POST | `/media-deletion-requests/{id}/approve` | Admin-only physical purge gate |
+| GET/POST | `/media-collections` | internal collections |
+| POST | `/media-collections/{id}/items`, `/order` | tenant-safe membership and order history |
+
+The list is limited to 100 rows per page and supports stable ordering and filters. Readers receive
+only `READY` media. The API never returns MinIO credentials, bucket policies, direct object URLs or
+secret values. Preview and download responses use detected MIME rather than a client claim.

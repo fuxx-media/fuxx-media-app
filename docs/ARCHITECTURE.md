@@ -16,7 +16,7 @@ MediaOS remains a modular monolith with separate runtime processes: Next.js fron
 
 ## Authorization and tenancy
 
-Roles are `ADMIN`, `BACKOFFICE`, `REVIEWER`, and `SYSTEM_WORKER`. Write and review dependencies enforce the minimum role before application services run. Tenant identity comes from the authenticated user and is included in repository filters, jobs, channels, files, idempotency records, and audit events. A foreign tenant resource is returned as not found rather than disclosed.
+Roles are `ADMIN`, `BACKOFFICE`, `REVIEWER`, `READER`, and `SYSTEM_WORKER`. Write and review dependencies enforce the minimum role before application services run. Readers receive only approved internal media and have no mutation capability. Tenant identity comes from the authenticated user and is included in repository filters, jobs, channels, files, idempotency records, and audit events. A foreign tenant resource is returned as not found rather than disclosed.
 
 ## Intake transaction
 
@@ -73,3 +73,26 @@ future provider (`validate_configuration`, `validate_request`, `prepare`, `execu
 Provider configuration persists references to environment secrets, never secret values. Callback
 foundations use HMAC-SHA256, bounded timestamps, event replay protection and correlation IDs. Both
 productive execution and callback intake are disabled by default and in the Phase-3 acceptance state.
+
+## Hauptblock 6 media boundary
+
+The media library is an internal FUXX MEDIA aggregate with no external business-system dependency.
+`MediaAsset` is the tenant-scoped aggregate root.
+Its business status, technical status, approval status, storage status and retention status remain
+independent. A verified binary is therefore not automatically approved, rights-cleared or ready.
+
+Uploads pass server-side signature detection and bounded local metadata extraction before a private
+MinIO object and PostgreSQL reference are committed. Tenant, SHA-256 and byte length identify one
+binary. Multiple assets or immutable versions may deliberately reference it without a second blob.
+The database transaction uses an advisory lock; a newly written object is compensated if database
+registration fails.
+
+Every replacement creates a `MediaVersion`; previous versions and their approvals remain historical.
+The current version must obtain its own rights decision and human approval. Media relationships are
+tenant checked and cycle checked. Collections preserve ordered item history. Physical deletion is
+never an HTTP-side effect: a reasoned request, Admin approval, hold/reference checks and a persistent
+`PURGE_MEDIA` task precede a worker-only MinIO removal.
+
+The browser receives media only through authenticated tenant-scoped preview/download routes. These
+routes never expose object keys or public URLs, use `nosniff`, `no-store`, sandboxing and safe content
+disposition, and support bounded byte ranges for audio/video. Active HTML and SVG are not accepted.

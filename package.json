@@ -14,7 +14,7 @@
     "build": "npm run build:frontend"
   },
   "dependencies": {
-    "next": "16.2.10",
+    "next": "16.2.11",
     "react": "19.2.7",
     "react-dom": "19.2.7"
   },
@@ -23,12 +23,13 @@
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",
     "eslint": "^9.39.0",
-    "eslint-config-next": "16.2.10",
+    "eslint-config-next": "16.2.11",
     "prettier": "^3.6.0",
     "typescript": "6.0.3"
   },
   "overrides": {
-    "postcss": "8.5.10"
+    "postcss": "8.5.22",
+    "sharp": "0.35.3"
   },
   "engines": {
     "node": ">=22"

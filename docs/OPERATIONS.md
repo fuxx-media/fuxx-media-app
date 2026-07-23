@@ -60,3 +60,25 @@ Inspect `execution_orders`, `outbox_events`, `execution_attempts`, `retry_plans`
 status is not success. Manual resume and final discard are Admin-only, require a reason and append
 audit evidence. After a worker restart, stale claims become retryable or dead-letter according to
 their attempt limit. Do not manually rewrite started payloads or completed evidence.
+
+## Hauptblock 6 media operations
+
+Keep `MEDIAOS_MEDIA_UPLOAD_MAX_BYTES` bounded (default 104857600) and the configured media bucket
+private. Do not add an anonymous MinIO policy. Upload object keys are content-addressed below the
+authenticated tenant prefix; they must never be returned to the browser. Monitor `media_tasks` for
+`VERIFY_MEDIA`, `REGISTER_PREVIEW` and `PURGE_MEDIA`, including attempts, retry time, lease and terminal
+error. A quarantined file requires human review; do not rewrite its hash or verification state.
+
+Backup and restore must treat PostgreSQL and the private MinIO bucket as one consistency unit. Record
+the database backup time and MinIO snapshot/version, restore both to an isolated environment, run
+`alembic upgrade head`, then verify every current `media_versions.media_file_id` against the stored
+object size and SHA-256 before release. Never restore only object storage over a newer database.
+
+Normal users may only request deletion. Admin approval still does not delete immediately: it creates
+a worker task after retention-hold and active-relation checks. The worker rechecks references and
+does not remove a shared binary while another non-purged version uses it. Inspect the audit events
+before and after every purge. Do not delete volumes or objects manually during routine operation.
+
+The accepted runtime flags keep public media, publishing, productive providers, real callbacks,
+email and external media processing disabled. FUXX MEDIA Hauptblock 6 performs no network egress for
+metadata extraction or previews.

@@ -56,3 +56,31 @@ PostgreSQL transaction as a non-dry execution order. `ExecutionAttempt`, `Provid
 `RetryPlan`, `ResultArtifact` and `CallbackReceipt` retain each worker/provider outcome, classified
 error, backoff, normalized response, SHA-256 artifact and signed callback receipt. Unique constraints
 protect idempotency per tenant/provider/operation/case/revision and callback replay per provider/event.
+
+## Hauptblock 6 media model
+
+Migration `d7e8f9a0b1c2` adds the standalone media aggregate without changing existing case or
+provider tables.
+
+- `MediaAsset`: tenant, title/description/type/category, separated lifecycle states, current version,
+  owner/editor, confidentiality, retention, archive and deletion hold.
+- `MediaFile`: private MinIO bucket/key, tenant-scoped SHA-256 plus size identity, detected MIME and
+  signature, storage/verification state, last integrity check and quarantine flag.
+- `MediaVersion`: immutable version number, file reference, sanitized original name, claimed and
+  detected MIME, media type, size/hash, reason, technical results, version-bound approval and
+  supersession link.
+- `MediaMetadata`: separated technical, business, custom and system-generated JSON documents.
+- `MediaCategory`, `MediaTag`, `MediaAssetTag`: tenant-safe hierarchical taxonomy, synonyms and
+  disable-instead-of-delete semantics.
+- `MediaVariant`, `MediaRelation`: preview/format records and typed, cycle-safe asset relations.
+- `MediaRights`, `MediaApproval`: license facts, proof reference, review reason and version-bound
+  human decision. A new version never inherits approval.
+- `MediaCollection`, `MediaCollectionItem`, `MediaCollectionHistory`: ordered internal collections
+  with immutable change history and no publication effect.
+- `MediaDeletionRequest`, `MediaTask`: approval-gated retention/deletion and durable worker claims,
+  retry/dead-letter evidence.
+
+`AuditEvent.media_asset_id` binds append-only history directly to an asset. Unique constraints protect
+file deduplication, one current version, version numbers, relation identity, collection membership and
+worker-task idempotency. The PostgreSQL role enum is additively extended with `READER`; downgrade does
+not remove this enum value because PostgreSQL enum value removal is not transaction-safe.

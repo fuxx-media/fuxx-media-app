@@ -28,6 +28,34 @@ deployment is enabled.
 
 ## Acceptance evidence
 
-The final commit/PR evidence records exact migration head, test counts, container health, browser
-steps, PostgreSQL/MinIO consistency and CI checks. This report must not be treated as release evidence
-without those executed results.
+The local acceptance run on 23 July 2026 completed against the isolated Block 6 test tenant and
+resources:
+
+- Docker Desktop `4.82.0` / Engine `29.6.1`; PostgreSQL, MinIO, backend, worker and frontend healthy;
+  the migration service exited with status `0`. The persistent PostgreSQL and MinIO volumes were
+  preserved.
+- Alembic upgraded an empty isolated database to the single head `d7e8f9a0b1c2`, a repeated
+  `upgrade head` succeeded, and `alembic check` reported no pending schema operations.
+- The complete backend suite passed with `98 passed`; Ruff and strict Mypy passed.
+- Frontend lint, typecheck and the production build passed. The final image runs Next.js `16.2.11`.
+- `npm audit --omit=dev` reported `0` vulnerabilities after the bounded Next.js, PostCSS and Sharp
+  security updates.
+- Architecture guard, secret guard, Compose configuration validation, Python sdist and wheel builds
+  passed.
+- HTTP/security checks proved health, readiness, version and frontend responses, anonymous rejection,
+  CSRF and role enforcement, private MinIO access, authenticated download and Range responses, logout
+  and revoked-session rejection.
+- The 41-step browser acceptance covered upload/signature validation, deterministic metadata,
+  preview, version immutability, version-bound rights/content approvals, self-approval prevention,
+  variants, cycle-safe relations, collections, search/filter/sort/pagination, private downloads,
+  deduplication, archive/deletion safeguards and logout. No browser console error was observed.
+- PostgreSQL and MinIO reconciliation proved six immutable versions backed by five content-addressed
+  objects, no orphaned versions, no unreferenced files, successful worker tasks, complete audit
+  history and no duplicate binary effect.
+
+All isolated acceptance users, tenant rows, database, bucket/prefix, fixtures and downloaded files
+were removed after the persistent proof. The immutable-audit trigger was immediately restored and
+verified as enabled. Existing application data, buckets and named volumes were not reset or deleted.
+
+No production deployment, external provider, callback, email, public bucket or external effect was
+used. GitHub CI evidence is recorded on the Block 6 pull request and is required before merge.

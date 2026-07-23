@@ -133,7 +133,7 @@ class MediaService:
                     technical_status=(
                         MediaTechnicalStatus.QUARANTINED
                         if upload.quarantined
-                        else MediaTechnicalStatus.VERIFIED
+                        else MediaTechnicalStatus.PENDING
                     ),
                     storage_status=MediaStorageStatus.STORED,
                     current_version_number=1,
@@ -261,12 +261,22 @@ class MediaService:
                 asset.technical_status = (
                     MediaTechnicalStatus.QUARANTINED
                     if upload.quarantined
-                    else MediaTechnicalStatus.VERIFIED
+                    else MediaTechnicalStatus.PENDING
                 )
                 asset.status = (
                     MediaStatus.QUARANTINED if upload.quarantined else MediaStatus.TECHNICAL_REVIEW
                 )
                 asset.approval_status = MediaApprovalStatus.NOT_REQUESTED
+                rights = await self.session.scalar(
+                    select(MediaRights)
+                    .where(MediaRights.media_asset_id == asset.id)
+                    .with_for_update()
+                )
+                if rights is not None:
+                    rights.review_status = RightsReviewStatus.PENDING
+                    rights.reviewed_by = None
+                    rights.reviewed_at = None
+                    rights.review_reason = None
                 self.session.add(
                     MediaMetadata(
                         media_version_id=version.id,
@@ -288,6 +298,7 @@ class MediaService:
                         "old_version": previous.version_number if previous else None,
                         "new_version": next_number,
                         "reason": reason.strip(),
+                        "rights_review_reset": rights is not None,
                         "technical_diff": {
                             "sha256_changed": previous.sha256 != upload.sha256
                             if previous
@@ -971,11 +982,11 @@ class MediaService:
             )
             if approval is None:
                 raise MediaNotFoundError("Pending media approval was not found")
-            if approval.requested_by == actor.id:
-                raise AuthorizationError("Self-approval of a media version is not allowed")
             version = await self.session.get(MediaVersion, approval.media_version_id)
             if version is None or not version.is_current:
                 raise MediaConflictError("Approval is not bound to the current version")
+            if approval.requested_by == actor.id or version.created_by == actor.id:
+                raise AuthorizationError("Self-approval of a media version is not allowed")
             rights = await self.session.scalar(
                 select(MediaRights).where(MediaRights.media_asset_id == asset.id)
             )
@@ -1353,11 +1364,7 @@ class MediaService:
             sha256=upload.sha256,
             detected_mime_type=upload.detected_mime_type,
             file_signature=upload.file_signature,
-            verification_status=(
-                MediaVerificationStatus.PENDING
-                if upload.quarantined
-                else MediaVerificationStatus.VERIFIED
-            ),
+            verification_status=MediaVerificationStatus.PENDING,
             storage_status=MediaStorageStatus.STORED,
             quarantined=upload.quarantined,
         )

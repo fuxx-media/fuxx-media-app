@@ -14,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from mediaos.domain.enums import (
     MediaApprovalStatus,
+    MediaVerificationStatus,
     RetentionStatus,
     RightsReviewStatus,
     RoleName,
@@ -226,6 +227,21 @@ async def test_media_lifecycle_versions_rights_relations_collections_and_access(
             )
             assert created.status_code == 201
             asset_id = created.json()["asset_id"]
+            pending_verification = (await editor.get(f"/api/v1/media-assets/{asset_id}")).json()
+            assert pending_verification["technical_status"] == "PENDING"
+            stored_file = await integration_session.scalar(
+                select(MediaFile)
+                .join(MediaVersion, MediaVersion.media_file_id == MediaFile.id)
+                .where(MediaVersion.media_asset_id == UUID(asset_id))
+            )
+            assert stored_file is not None
+            assert stored_file.verification_status == MediaVerificationStatus.PENDING
+            while await process_one_media_task():
+                pass
+            await integration_session.refresh(stored_file)
+            assert stored_file.verification_status == MediaVerificationStatus.VERIFIED
+            verified = (await editor.get(f"/api/v1/media-assets/{asset_id}")).json()
+            assert verified["technical_status"] == "VERIFIED"
             assert (await anonymous.get(f"/api/v1/media-assets/{asset_id}")).status_code == 401
             category = await admin.post(
                 "/api/v1/media-categories",
@@ -286,18 +302,24 @@ async def test_media_lifecycle_versions_rights_relations_collections_and_access(
                 json={"approve": True, "reason": "Rechte vollständig"},
             )
             assert rights_review.status_code == 200
-            approval = await editor.post(
+            approval = await admin.post(
                 f"/api/v1/media-assets/{asset_id}/approvals",
-                headers={"X-CSRF-Token": editor_csrf},
+                headers={"X-CSRF-Token": admin_csrf},
                 json={},
             )
             assert approval.status_code == 200
-            self_approval = await editor.post(
+            requester_self_approval = await admin.post(
                 f"/api/v1/media-assets/{asset_id}/approvals/{approval.json()['id']}/resolve",
-                headers={"X-CSRF-Token": editor_csrf},
+                headers={"X-CSRF-Token": admin_csrf},
                 json={"approve": True, "reason": "Must fail"},
             )
-            assert self_approval.status_code == 403
+            assert requester_self_approval.status_code == 403
+            creator_self_approval = await editor.post(
+                f"/api/v1/media-assets/{asset_id}/approvals/{approval.json()['id']}/resolve",
+                headers={"X-CSRF-Token": editor_csrf},
+                json={"approve": True, "reason": "Uploader must not approve"},
+            )
+            assert creator_self_approval.status_code == 403
             approved = await reviewer.post(
                 f"/api/v1/media-assets/{asset_id}/approvals/{approval.json()['id']}/resolve",
                 headers={"X-CSRF-Token": reviewer_csrf},
@@ -317,6 +339,14 @@ async def test_media_lifecycle_versions_rights_relations_collections_and_access(
             after_version = (await editor.get(f"/api/v1/media-assets/{asset_id}")).json()
             assert after_version["current_version_number"] == 2
             assert after_version["approval_status"] == "NOT_REQUESTED"
+            assert after_version["technical_status"] == "PENDING"
+            assert after_version["rights"]["review_status"] == "PENDING"
+            stale_rights_approval = await admin.post(
+                f"/api/v1/media-assets/{asset_id}/approvals",
+                headers={"X-CSRF-Token": admin_csrf},
+                json={},
+            )
+            assert stale_rights_approval.status_code == 422
             assert (
                 next(item for item in after_version["versions"] if item["id"] == old_version["id"])[
                     "approval_status"

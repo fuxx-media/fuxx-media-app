@@ -133,6 +133,15 @@ async def _verify(task: MediaTask, storage: ObjectStorage) -> None:
         asset = await session.get(MediaAsset, task.media_asset_id)
         if media_file is None or asset is None:
             raise ValueError("media file or asset for verification does not exist")
+        current_version = await session.scalar(
+            select(MediaVersion).where(
+                MediaVersion.media_asset_id == asset.id,
+                MediaVersion.is_current.is_(True),
+            )
+        )
+        affects_current = (
+            current_version is not None and current_version.media_file_id == media_file.id
+        )
         content = await storage.get_private(
             bucket=media_file.bucket, object_key=media_file.object_key
         )
@@ -140,15 +149,17 @@ async def _verify(task: MediaTask, storage: ObjectStorage) -> None:
         if actual_hash != media_file.sha256 or len(content) != media_file.size_bytes:
             media_file.verification_status = MediaVerificationStatus.REJECTED
             media_file.quarantined = True
-            asset.technical_status = MediaTechnicalStatus.QUARANTINED
-            asset.status = MediaStatus.QUARANTINED
+            if affects_current:
+                asset.technical_status = MediaTechnicalStatus.QUARANTINED
+                asset.status = MediaStatus.QUARANTINED
             integrity_error = "stored media integrity verification failed"
         else:
             media_file.verification_status = MediaVerificationStatus.VERIFIED
             media_file.storage_status = MediaStorageStatus.VERIFIED
             media_file.last_integrity_check_at = datetime.now(UTC)
-            asset.storage_status = MediaStorageStatus.VERIFIED
-            if not media_file.quarantined:
+            if affects_current:
+                asset.storage_status = MediaStorageStatus.VERIFIED
+            if affects_current and not media_file.quarantined:
                 asset.technical_status = MediaTechnicalStatus.VERIFIED
                 if asset.status == MediaStatus.TECHNICAL_REVIEW:
                     asset.status = MediaStatus.DRAFT

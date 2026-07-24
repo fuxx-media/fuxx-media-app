@@ -12,7 +12,7 @@ export type VersionResponse = {
   version: string;
 };
 
-export type RoleName = "ADMIN" | "BACKOFFICE" | "REVIEWER" | "SYSTEM_WORKER";
+export type RoleName = "ADMIN" | "BACKOFFICE" | "REVIEWER" | "READER" | "SYSTEM_WORKER";
 
 export type LoginRequest = {
   tenant_slug: string;
@@ -199,4 +199,115 @@ export type ExecutionDetail = ExecutionSummary & {
     payload: Record<string, unknown>;
     created_at: string;
   }>;
+};
+
+export type MediaAssetSummary = {
+  id: string;
+  tenant_id: string;
+  title: string;
+  media_type: string;
+  status: string;
+  technical_status: string;
+  approval_status: string;
+  storage_status: string;
+  current_version_number: number;
+  category_id: string | null;
+  archived: boolean;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+};
+
+export type MediaAssetDetail = MediaAssetSummary & {
+  description: string | null;
+  revision: number;
+  assigned_to: string | null;
+  retention_status: string;
+  confidentiality: string;
+  deletion_locked: boolean;
+  tags: Array<{ id: string; name: string }>;
+  versions: Array<{
+    id: string;
+    version_number: number;
+    file_id: string;
+    original_filename: string;
+    mime_type: string;
+    size_bytes: number;
+    sha256: string;
+    change_reason: string;
+    approval_status: string;
+    is_current: boolean;
+    created_at: string;
+    technical_metadata: Record<string, unknown>;
+    business_metadata: Record<string, unknown>;
+  }>;
+  variants: Array<{
+    id: string;
+    source_version_id: string;
+    variant_type: string;
+    technical_properties: Record<string, unknown>;
+    generation_status: string;
+    generation_source: string;
+  }>;
+  relations: Array<{
+    id: string;
+    source_asset_id: string;
+    target_asset_id: string;
+    relation_type: string;
+  }>;
+  rights: null | {
+    id: string;
+    rights_holder: string;
+    license_type: string;
+    usage_start: string | null;
+    usage_end: string | null;
+    allowed_uses: string[];
+    allowed_regions: string[];
+    allowed_channels: string[];
+    attribution_required: boolean;
+    editing_allowed: boolean;
+    redistribution_allowed: boolean;
+    restrictions: string | null;
+    proof_media_asset_id: string | null;
+    review_status: string;
+    review_reason: string | null;
+  };
+  approvals: Array<{
+    id: string;
+    media_version_id: string;
+    requested_by: string;
+    resolved_by: string | null;
+    status: string;
+    reason: string | null;
+    created_at: string;
+  }>;
+  deletion_requests: Array<{
+    id: string;
+    requested_by: string;
+    approved_by: string | null;
+    reason: string;
+    status: string;
+    requested_at: string;
+    approved_at: string | null;
+  }>;
+  audit: Array<{
+    id: string;
+    event_type: string;
+    payload: Record<string, unknown>;
+    created_at: string;
+  }>;
+};
+
+export type MediaTaxonomy = {
+  categories: Array<{ id: string; parent_id: string | null; name: string; slug: string }>;
+  tags: Array<{ id: string; name: string; synonyms: string[] }>;
+};
+
+export type MediaCollection = {
+  id: string;
+  name: string;
+  description: string | null;
+  visibility: string;
+  status: string;
+  items: Array<{ asset_id: string; position: number }>;
 };

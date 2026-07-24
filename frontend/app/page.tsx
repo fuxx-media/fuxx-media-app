@@ -7,7 +7,7 @@ export default function Home() {
       <section className="masthead" aria-labelledby="page-title">
         <div>
           <p className="eyebrow">MediaOS</p>
-          <h1 id="page-title">Interne Vorgangsbearbeitung</h1>
+          <h1 id="page-title">Interne Vorgangs- und Medienbearbeitung</h1>
         </div>
         <span className="phase-badge">Echte Provider und produktive Ausführung deaktiviert</span>
       </section>

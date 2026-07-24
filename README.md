@@ -1,8 +1,8 @@
 # MediaOS
 
-MediaOS is a modular-monolith foundation for a human-approved media production workflow. Phase 3 adds a provider-independent execution boundary with revision-bound gates, persistent outbox, simulation adapter, Dry-Run, retry/dead-letter handling, callback signatures and secret references to the authenticated Phase-2 case process.
+MediaOS is the standalone FUXX MEDIA modular monolith. Hauptblock 6 adds a private, tenant-safe and versioned media library for images, documents, audio and video while preserving the existing authenticated workflow and provider-independent execution foundation.
 
-No real provider, email, research workflow, media generation, publishing integration or productive external execution is activated.
+No real provider, email, external business system, AI media generation, public media link, publishing integration or productive external execution is activated.
 
 ## Prerequisites
 
@@ -76,7 +76,7 @@ Deleting volumes is intentionally not part of the normal workflow.
 ```powershell
 docker compose run --rm backend ruff check backend/src backend/tests scripts
 docker compose run --rm backend mypy backend/src scripts/check_architecture.py
-docker compose run --rm -e POSTGRES_DB=mediaos_phase3_test -e MEDIAOS_RUN_INTEGRATION=1 backend pytest
+docker compose run --rm -e POSTGRES_DB=mediaos_block06_test -e MEDIAOS_RUN_INTEGRATION=1 backend pytest
 docker compose run --rm backend python scripts/check_architecture.py
 docker compose run --rm frontend npm run lint:frontend
 docker compose run --rm frontend npm run typecheck:frontend
@@ -89,6 +89,6 @@ The GitHub-compatible workflow in `.github/workflows/ci.yml` runs the same categ
 
 ## Current scope
 
-Phase 3 preserves the complete internal process and adds only a local simulation path. Fachservices never call adapters directly: a valid business approval, a technical approval, an immutable execution order and a PostgreSQL outbox always precede worker dispatch. Productive execution and real callbacks remain disabled.
+Hauptblock 6 provides authenticated private uploads, content-signature validation, SHA-256 deduplication, immutable versions, technical and business metadata, rights review, version-bound approval, collections, private preview/download routes and controlled worker-only deletion. The library has no publishing path and no external business-system dependency. Productive execution and real callbacks remain disabled.
 
 See [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md), [docs/OPERATIONS.md](docs/OPERATIONS.md), [docs/TESTING.md](docs/TESTING.md), and [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md).

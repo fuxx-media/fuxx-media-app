@@ -31,3 +31,18 @@ worker-restart recovery, dead letter, reasoned resume/discard, revision invalida
 expired timestamps, unknown correlation IDs, replay/double delivery, tenant/role boundaries and
 provider audit completeness. Callback tests use an isolated process-only test secret and leave the
 runtime callback feature disabled.
+
+Hauptblock 6 adds signature-based JPEG/PNG/WebP/PDF/MP3/WAV/MP4 validation, size and empty-file
+rejection, mismatch quarantine, SHA-256 deduplication, immutable versions, metadata extraction,
+optimistic locking, tenant and role boundaries, version-bound approval, rights gates, Range preview,
+cycle-safe relations, collections, deletion holds and durable media worker outcomes. Integration
+tests use only a database ending in `_test` and an isolated MinIO test prefix/bucket. They must prove
+that no anonymous policy exists, identical content has one binary reference and cleanup removes only
+the test resources it created.
+
+For an acceptance run, execute migration twice on a fresh isolated database, `alembic check`, the
+complete Pytest suite, Ruff, strict Mypy, frontend format/lint/typecheck/production build,
+`npm audit --omit=dev`, architecture and secret guards, Python sdist/wheel and Compose config. The
+browser path covers upload, mismatch/duplicate information, metadata, rights, independent review,
+new-version approval reset, preview/range/download authorization, relation-cycle rejection,
+collection ordering, archive/deletion guards, audit and logout without console errors.

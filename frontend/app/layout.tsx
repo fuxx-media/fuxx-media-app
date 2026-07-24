@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "MediaOS Phase 3",
+  title: "MediaOS Hauptblock 6",
   description: "Interne Vorgangs- und providerunabhängige Simulationsgrundlage.",
 };
 

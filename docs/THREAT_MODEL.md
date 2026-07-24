@@ -41,3 +41,22 @@ Local MinIO uses an administrative credential shared by backend and worker. A la
 The in-memory simulation adapter status cache is diagnostic only; PostgreSQL remains authoritative.
 Before any real provider is added, provider-specific egress allowlists, credential rotation and
 external contract certification remain mandatory.
+
+## Hauptblock 6 media threats
+
+- Polyglot or mislabeled media: allowlisted signatures, detected MIME, bounded format parsers and
+  quarantine on client MIME/extension mismatch; SVG, HTML and unknown content are rejected.
+- Stored-object corruption: SHA-256 and byte length are persisted and rechecked by the worker;
+  mismatch is committed as quarantine before the task becomes a durable terminal failure.
+- Cross-tenant blob disclosure: hashes never authorize access; every asset, version and file lookup
+  is filtered by the session tenant and foreign resources remain undisclosed.
+- Browser active content: detected types only, `X-Content-Type-Options: nosniff`, private routes,
+  sandbox CSP, safe Content-Disposition and no raw object URL.
+- Duplicate/blob races: advisory transaction lock plus tenant/hash/size uniqueness; compensation
+  removes a just-written object when database registration fails.
+- Silent overwrite or stale approval: versions are append-only, optimistic asset revision checks
+  reject lost updates and approval binds to the exact version.
+- Premature deletion: normal users cannot physically delete; retention holds, active relations,
+  shared-file references, Admin approval, persistent task and worker recheck block unsafe purge.
+- Rights misuse: READY requires current-version technical validity, complete approved non-expired
+  rights and independent human approval. The block provides no publishing or external distribution.

@@ -94,3 +94,19 @@ class CallbackValidationError(ApplicationError):
 
 class CallbackReplayError(ApplicationError):
     code = "CALLBACK_REPLAY"
+
+
+class MediaNotFoundError(ApplicationError):
+    code = "MEDIA_NOT_FOUND"
+
+
+class MediaConflictError(ApplicationError):
+    code = "MEDIA_CONFLICT"
+
+
+class MediaRightsError(ApplicationError):
+    code = "MEDIA_RIGHTS_FAILED"
+
+
+class MediaDeletionError(ApplicationError):
+    code = "MEDIA_DELETION_BLOCKED"

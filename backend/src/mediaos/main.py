@@ -14,6 +14,7 @@ from mediaos import APP_NAME, APP_VERSION
 from mediaos.api.auth_routes import router as auth_router
 from mediaos.api.health import router as health_router
 from mediaos.api.phase_one import router as phase_one_router
+from mediaos.api.phase_six import router as phase_six_router
 from mediaos.api.phase_three import router as phase_three_router
 from mediaos.api.phase_two import router as phase_two_router
 from mediaos.api.phase_zero import router as phase_zero_router
@@ -40,7 +41,7 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=get_frontend_origins(),
-    allow_methods=["GET", "POST"],
+    allow_methods=["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE"],
     allow_headers=["Content-Type", "X-CSRF-Token", "Idempotency-Key"],
     allow_credentials=True,
 )
@@ -50,6 +51,7 @@ app.include_router(phase_zero_router)
 app.include_router(phase_one_router)
 app.include_router(phase_two_router)
 app.include_router(phase_three_router)
+app.include_router(phase_six_router)
 
 
 @app.exception_handler(ApplicationError)
@@ -68,6 +70,9 @@ async def application_error_handler(_: Request, exc: ApplicationError) -> JSONRe
         "CALLBACK_VALIDATION_FAILED": 422,
         "PROVIDER_NOT_FOUND": 404,
         "EXECUTION_NOT_FOUND": 404,
+        "MEDIA_NOT_FOUND": 404,
+        "MEDIA_RIGHTS_FAILED": 422,
+        "MEDIA_DELETION_BLOCKED": 422,
         "CALLBACK_REPLAY": 409,
     }.get(exc.code, 409)
     return JSONResponse(

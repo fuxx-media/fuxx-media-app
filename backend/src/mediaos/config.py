@@ -28,6 +28,7 @@ class Settings(BaseSettings):
     minio_root_password: SecretStr
     mediaos_private_bucket: str = "mediaos-private"
     mediaos_upload_max_bytes: int = 10 * 1024 * 1024
+    mediaos_media_upload_max_bytes: int = 100 * 1024 * 1024
     mediaos_session_ttl_seconds: int = 8 * 60 * 60
     mediaos_cookie_secure: bool = False
 

@@ -21,7 +21,9 @@ abschwächen.
 Für dieses Projekt gelten ausschließlich folgende Werte:
 
 - Projekt: `MediaOS`
-- führender Host: `Office-Sandbox`
+- führende Entwicklungs- und Test-Sandbox: `Office-Sandbox` (`46.225.17.75`)
+- Produktivserver: `magnusfuxx1` (`91.98.173.91`)
+- Produktionszugriff: nur nach ausdrücklicher Freigabe für Deployment oder Betriebsarbeit
 - führendes Repository: `/home/meti/projects/fuxx-media-app`
 - Git-Remote `origin`: `https://github.com/fuxx-media/fuxx-media-app.git`
 - Hauptbranch: `main`
@@ -34,6 +36,13 @@ Vermutungen oder ähnlich klingenden Namen zugeordnet werden.
 
 Die einzige führende Entwicklungsumgebung ist das oben genannte
 Server-Repository.
+
+Der Produktivserver `magnusfuxx1` (`91.98.173.91`) ist ausdrücklich keine
+Entwicklungs- oder Testumgebung. Zugriffe und Änderungen dort sind nur für
+einen vom Nutzer ausdrücklich beauftragten produktiven Deploy-, Prüf- oder
+Betriebsvorgang zulässig. Die `Office-Sandbox` darf niemals als
+Produktivserver behandelt werden; `magnusfuxx1` darf niemals als
+Ersatz-Sandbox verwendet werden.
 
 PC und Laptop sind ausschließlich Zugangsgeräte.
 

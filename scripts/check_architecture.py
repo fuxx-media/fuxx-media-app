@@ -16,6 +16,7 @@ ALLOWED_TOP_LEVEL = {
     ".github",
     ".gitignore",
     ".local-certs",
+    "AGENTS.md",
     "IMPLEMENTATION_PLAN.md",
     "Makefile",
     "PHASE_0_1_CONFLICT_REPORT.md",
